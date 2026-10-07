@@ -2,6 +2,7 @@ pub const PLAYER_A_ID: i64 = 1000000000001;
 pub const PLAYER_B_ID: i64 = 2000000000002;
 pub const CABIN_NAME: &str = "Cabin_stone_1";
 
+#[allow(dead_code)]
 pub fn generate_test_save_xml() -> String {
     format!(
         r#"<?xml version="1.0" encoding="utf-8"?>

@@ -89,10 +89,40 @@ impl<C: ProcessChecker> ProcessMonitor<C> {
         self.checker.is_process_running(&[
             "Stardew Valley.exe",
             "Stardew Valley",
+            "StardewValley.exe",
+            "StardewValley",
             "StardewModdingAPI.exe",
             "StardewModdingAPI",
         ])
     }
+
+    /// Diagnostic utility to scan for any active process whose name contains "stardew"
+    /// (useful for diagnosing Microsoft Store / Xbox PC package names).
+    pub fn get_stardew_diagnostics() -> Vec<ProcessDiagnostic> {
+        let mut sys = System::new();
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        let mut results = Vec::new();
+
+        for (pid, process) in sys.processes() {
+            let name = process.name().to_string_lossy().to_string();
+            let name_lower = name.to_lowercase();
+            if name_lower.contains("stardew") {
+                results.push(ProcessDiagnostic {
+                    pid: pid.as_u32(),
+                    name,
+                    matches_stardew: true,
+                });
+            }
+        }
+        results
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct ProcessDiagnostic {
+    pub pid: u32,
+    pub name: String,
+    pub matches_stardew: bool,
 }
 
 #[derive(Debug, Clone)]

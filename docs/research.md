@@ -166,23 +166,26 @@ From studying community reports and tools:
 
 ---
 
-## 5. Steam Cloud Interaction Analysis
+## 5. Platform Distribution & Cloud Interaction Analysis (Microsoft Store / Xbox PC & Steam)
 
-### 5.1 Mechanics
-- On Windows, Steam Cloud syncs `%APPDATA%\StardewValley\Saves`.
-- Steam checks file modification timestamps (`mtime`) on game start and game exit:
-  - **Game Launch:** If Steam Cloud has files with a newer timestamp than local, Steam prompts the user with a "Cloud Sync Conflict" dialog or downloads the cloud files.
-  - **Game Exit:** When Stardew exits, the Steam client immediately compresses and uploads the local save folder to Steam Cloud.
+### 5.1 Platform Identification: Microsoft Store / Xbox PC
+- **Primary Runtime Platform:** The user owns and runs Stardew Valley 1.6 through the **Microsoft Store / Xbox PC** distribution (NOT Steam).
+- **Save Location:** Confirmed to use the standard Windows save path:
+  `%APPDATA%\StardewValley\Saves`
+- **Process Executable:** Can appear as `Stardew Valley.exe`, `StardewValley.exe`, or packaged Xbox app names. `ProcessMonitor` monitors all naming variants and provides a substring diagnostic scanner.
+- **Xbox Cloud Synchronization:** Microsoft Store / Xbox PC games may have Xbox Live Cloud Save integration. We do NOT disable, modify, or interfere with Microsoft/Xbox cloud settings.
+- **Observation Strategy:** Rather than making assumptions, `CloudObserver` snapshots file sizes, modification times (`mtime`), and SHA-256 hashes immediately before launch and immediately after exit to detect any background or cloud alterations.
 
-### 5.2 Race Conditions & Failure Modes
-- If our desktop application updates the save file while Steam is running, Steam may perceive the change as a conflict if the timestamps do not cleanly advance.
-- If Elbi plays on her PC, and Kubilay's PC has Steam running in the background, Steam Cloud on Kubilay's PC might retain Kubilay's older session until our app intervenes.
+### 5.2 Steam Cloud Mechanics (Reference / Alternative Platform)
+- On Steam installations, Steam Cloud syncs `%APPDATA%\StardewValley\Saves`.
+- Steam checks file modification timestamps (`mtime`) on game start and game exit.
+- While Steam-specific considerations remain relevant for future multi-platform support, they do not apply to the current user's runtime environment.
 
-### 5.3 Safety Protocol
-1. **Never mutate while Stardew is running:** Check for `Stardew Valley.exe` and `StardewModdingAPI.exe` before any write.
-2. **Explicit Timestamps:** When writing synchronized or transformed saves to disk, update filesystem `mtime` to the current system time to ensure Steam recognizes the local save as fresh.
-3. **Local Safety Backup First:** Always snapshot to `%LOCALAPPDATA%\stardew-sync\backups\` before replacing anything, so even if a user accidentally clicks the wrong Steam Cloud prompt, our app can restore the farm with one click.
-4. **Documentation & Guidance:** Provide clear instructions in the app UI regarding Steam Cloud behavior.
+### 5.3 Unified Safety Protocol
+1. **Never mutate while Stardew is running:** Check for `Stardew Valley.exe`, `StardewValley.exe`, and `StardewModdingAPI.exe` before any write.
+2. **Explicit Timestamps:** When writing synchronized or transformed saves to disk, ensure filesystem `mtime` reflects the actual write time.
+3. **Local Safety Backup First:** Always snapshot to `%LOCALAPPDATA%\stardew-sync\backups\` before replacing anything, guaranteeing one-click rollback regardless of platform.
+4. **Hard Production Guard:** Prevent any operation on the production farm `TXrk_450560341` during testing phases.
 
 ---
 

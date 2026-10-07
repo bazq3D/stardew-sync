@@ -8,6 +8,12 @@ pub use core::process::monitor::{
     MockProcessChecker, ProcessChecker, ProcessMonitor, SaveSettleConfig, SaveSettleDetector,
     SystemProcessChecker,
 };
+pub use core::runtime::analyzer::{PostRuntimeAnalyzer, PostRuntimeReport};
+pub use core::runtime::disposable::{
+    DisposableIdentity, DisposableSaveManager, DisposableState, RuntimeBaselineManifest,
+};
+pub use core::runtime::guard::{ProductionGuard, PRODUCTION_FARM_FOLDER, PRODUCTION_GAME_ID};
+pub use core::runtime::observer::{CloudObserver, DirectoryObservationSnapshot, ObservationDelta};
 pub use core::save::discovery::{discover_saves, DiscoveredSave};
 pub use core::save::fingerprint::{
     compute_full_farmer_fingerprint, compute_migration_stable_fingerprint, verify_allowed_diff,

@@ -10,6 +10,9 @@ working/
 scratch/
 test-copies/
 FARM_KLASORU/
+save/
+disposable-runtime-states/
+*.save
 
 # OS files
 Thumbs.db
