@@ -2,6 +2,14 @@
 /target
 /src-tauri/target
 
+# Real-save dry-run directories (NEVER commit real save data)
+real-save-tests/
+dry-run-input/
+dry-run-output/
+working/
+scratch/
+test-copies/
+
 # OS files
 Thumbs.db
 [Dd]esktop.ini
