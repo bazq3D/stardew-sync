@@ -1,14 +1,14 @@
 mod test_fixtures;
 
-use std::time::Duration;
-use tempfile::tempdir;
-use test_fixtures::{generate_test_save_xml, generate_test_save_game_info_xml};
 use chrono::Utc;
 use stardew_sync_core::{
-    discover_saves, BackupManager, BackupType, MockProcessChecker, ProcessMonitor,
-    RecoveryManager, RecoveryManifest, SafeReplacer, SaveSettleConfig, SaveSettleDetector,
-    StagingArea, TransactionState,
+    discover_saves, BackupManager, BackupType, MockProcessChecker, ProcessMonitor, RecoveryManager,
+    RecoveryManifest, SafeReplacer, SaveSettleConfig, SaveSettleDetector, StagingArea,
+    TransactionState,
 };
+use std::time::Duration;
+use tempfile::tempdir;
+use test_fixtures::{generate_test_save_game_info_xml, generate_test_save_xml};
 
 #[test]
 fn test_save_discovery_on_isolated_temp_directory() {
@@ -59,13 +59,18 @@ fn test_backup_creation_verification_and_tamper_detection() {
     let save_dir = temp_root.path().join("Emerald_42");
     std::fs::create_dir_all(&save_dir).unwrap();
     std::fs::write(save_dir.join("Emerald_42"), generate_test_save_xml()).unwrap();
-    std::fs::write(save_dir.join("SaveGameInfo"), generate_test_save_game_info_xml()).unwrap();
+    std::fs::write(
+        save_dir.join("SaveGameInfo"),
+        generate_test_save_game_info_xml(),
+    )
+    .unwrap();
 
     let backups_root = temp_root.path().join("backups");
 
     // 1. Create verified backup
-    let manifest = BackupManager::create_backup(&save_dir, &backups_root, BackupType::Manual, false)
-        .expect("Backup creation should succeed");
+    let manifest =
+        BackupManager::create_backup(&save_dir, &backups_root, BackupType::Manual, false)
+            .expect("Backup creation should succeed");
 
     let backup_dir = backups_root.join("Emerald_42").join(&manifest.backup_id);
     assert!(backup_dir.is_dir());
@@ -98,8 +103,9 @@ fn test_original_import_protection_from_retention() {
     let farm_backups_dir = backups_root.join("Farm_100");
 
     // 1. Create Original Import backup (must be protected forever)
-    let orig_import = BackupManager::create_backup(&save_dir, &backups_root, BackupType::OriginalImport, true)
-        .unwrap();
+    let orig_import =
+        BackupManager::create_backup(&save_dir, &backups_root, BackupType::OriginalImport, true)
+            .unwrap();
     assert!(orig_import.is_protected);
 
     // 2. Create 5 regular unprotected backups
@@ -112,12 +118,19 @@ fn test_original_import_protection_from_retention() {
     let deleted = BackupManager::enforce_retention(&farm_backups_dir, 2)
         .expect("Retention enforcement should succeed");
 
-    assert_eq!(deleted, 3, "Should have pruned 3 excess unprotected backups");
+    assert_eq!(
+        deleted, 3,
+        "Should have pruned 3 excess unprotected backups"
+    );
 
     // 4. Assert the Original Import backup still exists and is untouched
     let orig_import_dir = farm_backups_dir.join(&orig_import.backup_id);
-    assert!(orig_import_dir.is_dir(), "Original Import backup must NEVER be deleted");
-    BackupManager::verify_backup(&orig_import_dir).expect("Original Import backup must still be valid");
+    assert!(
+        orig_import_dir.is_dir(),
+        "Original Import backup must NEVER be deleted"
+    );
+    BackupManager::verify_backup(&orig_import_dir)
+        .expect("Original Import backup must still be valid");
 }
 
 #[test]
@@ -130,7 +143,11 @@ fn test_staging_area_and_safe_transactional_replacement() {
 
     std::fs::create_dir_all(&live_dir).unwrap();
     std::fs::write(live_dir.join("Farm_200"), generate_test_save_xml()).unwrap();
-    std::fs::write(live_dir.join("SaveGameInfo"), generate_test_save_game_info_xml()).unwrap();
+    std::fs::write(
+        live_dir.join("SaveGameInfo"),
+        generate_test_save_game_info_xml(),
+    )
+    .unwrap();
 
     // 1. Create staging area and populate
     let staging = StagingArea::new(&work_dir).unwrap();
@@ -148,11 +165,17 @@ fn test_staging_area_and_safe_transactional_replacement() {
 
     // 3. Verify live folder now has the new content
     let live_content = std::fs::read_to_string(live_dir.join("Farm_200")).unwrap();
-    assert!(live_content.contains("fall"), "Live folder must have updated staged content");
+    assert!(
+        live_content.contains("fall"),
+        "Live folder must have updated staged content"
+    );
 
     // 4. Verify safety backup of pre-replacement state was created
     let farm_backups = backups_dir.join("Farm_200");
-    assert!(farm_backups.is_dir(), "A safety backup must be created before replacing");
+    assert!(
+        farm_backups.is_dir(),
+        "A safety backup must be created before replacing"
+    );
 }
 
 #[test]
@@ -162,7 +185,9 @@ fn test_process_monitor_mock() {
 
     assert!(!monitor.is_stardew_running());
 
-    monitor.checker.set_running(vec!["notepad.exe", "chrome.exe"]);
+    monitor
+        .checker
+        .set_running(vec!["notepad.exe", "chrome.exe"]);
     assert!(!monitor.is_stardew_running());
 
     monitor.checker.set_running(vec!["Stardew Valley.exe"]);
@@ -228,8 +253,16 @@ fn test_transaction_crash_recovery_restores_live_save() {
         "original_pre_swap_data",
         "Live directory must have original data restored from rollback folder"
     );
-    assert!(!rollback_dir.exists(), "Rollback directory must be cleaned up");
-    assert!(!staging_dir.exists(), "Staging directory must be cleaned up");
-    assert!(!manifest_path.exists(), "Crash manifest must be deleted after recovery");
+    assert!(
+        !rollback_dir.exists(),
+        "Rollback directory must be cleaned up"
+    );
+    assert!(
+        !staging_dir.exists(),
+        "Staging directory must be cleaned up"
+    );
+    assert!(
+        !manifest_path.exists(),
+        "Crash manifest must be deleted after recovery"
+    );
 }
-

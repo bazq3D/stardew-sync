@@ -1,6 +1,6 @@
+use crate::core::errors::CoreError;
 use sha2::{Digest, Sha256};
 use xmltree::{Element, XMLNode};
-use crate::core::errors::CoreError;
 
 /// Fields excluded from the migration-stable fingerprint:
 /// 1. `homeLocation`: Expected to swap between "FarmHouse" and the Cabin indoors identifier.
@@ -75,7 +75,10 @@ pub fn verify_allowed_diff(
     if original.name != transformed.name {
         return Err(CoreError::WorldDiffViolation {
             path: "/SaveGame".to_string(),
-            detail: format!("Root name changed from '{}' to '{}'", original.name, transformed.name),
+            detail: format!(
+                "Root name changed from '{}' to '{}'",
+                original.name, transformed.name
+            ),
         });
     }
 
@@ -91,22 +94,24 @@ pub fn verify_allowed_diff(
 
             if tag == "locations" {
                 // Inspect locations with care
-                let trans_locations = transformed.get_child("locations")
-                    .ok_or_else(|| CoreError::WorldDiffViolation {
+                let trans_locations = transformed.get_child("locations").ok_or_else(|| {
+                    CoreError::WorldDiffViolation {
                         path: "/SaveGame/locations".to_string(),
                         detail: "Transformed XML is missing 'locations' element".to_string(),
-                    })?;
+                    }
+                })?;
                 verify_locations_diff(orig_child, trans_locations, target_cabin_name)?;
                 continue;
             }
 
             // All other root tags (e.g., currentSeason, dayOfMonth, year, dailyLuck, farmerTeam, etc.)
             // MUST be identical.
-            let trans_child = transformed.get_child(tag.as_str())
-                .ok_or_else(|| CoreError::WorldDiffViolation {
+            let trans_child = transformed.get_child(tag.as_str()).ok_or_else(|| {
+                CoreError::WorldDiffViolation {
                     path: format!("/SaveGame/{}", tag),
                     detail: format!("Element '{}' was removed from transformed XML", tag),
-                })?;
+                }
+            })?;
 
             let orig_canon = canonicalize_element(orig_child)?;
             let trans_canon = canonicalize_element(trans_child)?;
@@ -128,13 +133,29 @@ fn verify_locations_diff(
     trans_locations: &Element,
     target_cabin_name: &str,
 ) -> Result<(), CoreError> {
-    let orig_loc_children: Vec<&Element> = orig_locations.children.iter().filter_map(|n| {
-        if let XMLNode::Element(e) = n { Some(e) } else { None }
-    }).collect();
+    let orig_loc_children: Vec<&Element> = orig_locations
+        .children
+        .iter()
+        .filter_map(|n| {
+            if let XMLNode::Element(e) = n {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .collect();
 
-    let trans_loc_children: Vec<&Element> = trans_locations.children.iter().filter_map(|n| {
-        if let XMLNode::Element(e) = n { Some(e) } else { None }
-    }).collect();
+    let trans_loc_children: Vec<&Element> = trans_locations
+        .children
+        .iter()
+        .filter_map(|n| {
+            if let XMLNode::Element(e) = n {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .collect();
 
     if orig_loc_children.len() != trans_loc_children.len() {
         return Err(CoreError::WorldDiffViolation {
@@ -149,7 +170,10 @@ fn verify_locations_diff(
 
     for (i, orig_loc) in orig_loc_children.iter().enumerate() {
         let trans_loc = trans_loc_children[i];
-        let name = orig_loc.get_child("name").and_then(|c| c.get_text()).unwrap_or_default();
+        let name = orig_loc
+            .get_child("name")
+            .and_then(|c| c.get_text())
+            .unwrap_or_default();
 
         if name != "Farm" {
             // Non-farm location must be 100% identical
@@ -180,21 +204,23 @@ fn verify_farm_diff(
             let tag = &orig_child.name;
 
             if tag == "buildings" {
-                let trans_buildings = trans_farm.get_child("buildings")
-                    .ok_or_else(|| CoreError::WorldDiffViolation {
+                let trans_buildings = trans_farm.get_child("buildings").ok_or_else(|| {
+                    CoreError::WorldDiffViolation {
                         path: "/SaveGame/locations/GameLocation[Farm]/buildings".to_string(),
                         detail: "Missing buildings element in transformed farm".to_string(),
-                    })?;
+                    }
+                })?;
                 verify_buildings_diff(orig_child, trans_buildings, target_cabin_name)?;
                 continue;
             }
 
             // Other farm elements (crops, debris, terrainFeatures, etc.) must be unchanged
-            let trans_child = trans_farm.get_child(tag.as_str())
-                .ok_or_else(|| CoreError::WorldDiffViolation {
+            let trans_child = trans_farm.get_child(tag.as_str()).ok_or_else(|| {
+                CoreError::WorldDiffViolation {
                     path: format!("/SaveGame/locations/GameLocation[Farm]/{}", tag),
                     detail: format!("Element '{}' missing in transformed farm", tag),
-                })?;
+                }
+            })?;
 
             let orig_c = canonicalize_element(orig_child)?;
             let trans_c = canonicalize_element(trans_child)?;
@@ -215,13 +241,29 @@ fn verify_buildings_diff(
     trans_buildings: &Element,
     target_cabin_name: &str,
 ) -> Result<(), CoreError> {
-    let orig_list: Vec<&Element> = orig_buildings.children.iter().filter_map(|n| {
-        if let XMLNode::Element(e) = n { Some(e) } else { None }
-    }).collect();
+    let orig_list: Vec<&Element> = orig_buildings
+        .children
+        .iter()
+        .filter_map(|n| {
+            if let XMLNode::Element(e) = n {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .collect();
 
-    let trans_list: Vec<&Element> = trans_buildings.children.iter().filter_map(|n| {
-        if let XMLNode::Element(e) = n { Some(e) } else { None }
-    }).collect();
+    let trans_list: Vec<&Element> = trans_buildings
+        .children
+        .iter()
+        .filter_map(|n| {
+            if let XMLNode::Element(e) = n {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .collect();
 
     if orig_list.len() != trans_list.len() {
         return Err(CoreError::WorldDiffViolation {
@@ -232,8 +274,12 @@ fn verify_buildings_diff(
 
     for (i, orig_b) in orig_list.iter().enumerate() {
         let trans_b = trans_list[i];
-        let indoors_name = orig_b.get_child("indoors")
-            .and_then(|ind| ind.get_child("uniqueName").or_else(|| ind.get_child("name")))
+        let indoors_name = orig_b
+            .get_child("indoors")
+            .and_then(|ind| {
+                ind.get_child("uniqueName")
+                    .or_else(|| ind.get_child("name"))
+            })
             .and_then(|c| c.get_text())
             .unwrap_or_default();
 
@@ -243,8 +289,14 @@ fn verify_buildings_diff(
             let trans_c = canonicalize_element(trans_b)?;
             if orig_c != trans_c {
                 return Err(CoreError::WorldDiffViolation {
-                    path: format!("/SaveGame/locations/GameLocation[Farm]/buildings/Building[{}]", indoors_name),
-                    detail: format!("Unexpected modification to non-target building '{}'", indoors_name),
+                    path: format!(
+                        "/SaveGame/locations/GameLocation[Farm]/buildings/Building[{}]",
+                        indoors_name
+                    ),
+                    detail: format!(
+                        "Unexpected modification to non-target building '{}'",
+                        indoors_name
+                    ),
                 });
             }
         } else {
@@ -265,11 +317,12 @@ fn verify_target_cabin_diff(
     for orig_node in &orig_b.children {
         if let XMLNode::Element(orig_child) = orig_node {
             if orig_child.name != "indoors" {
-                let trans_child = trans_b.get_child(orig_child.name.as_str())
-                    .ok_or_else(|| CoreError::WorldDiffViolation {
+                let trans_child = trans_b.get_child(orig_child.name.as_str()).ok_or_else(|| {
+                    CoreError::WorldDiffViolation {
                         path: format!("/Building[{}]/{}", cabin_name, orig_child.name),
                         detail: "Building property missing".to_string(),
-                    })?;
+                    }
+                })?;
                 let orig_c = canonicalize_element(orig_child)?;
                 let trans_c = canonicalize_element(trans_child)?;
                 if orig_c != trans_c {
@@ -289,11 +342,13 @@ fn verify_target_cabin_diff(
     for orig_node in &orig_ind.children {
         if let XMLNode::Element(orig_child) = orig_node {
             if orig_child.name != "farmhand" {
-                let trans_child = trans_ind.get_child(orig_child.name.as_str())
-                    .ok_or_else(|| CoreError::WorldDiffViolation {
-                        path: format!("/Building[{}]/indoors/{}", cabin_name, orig_child.name),
-                        detail: "Cabin interior property missing".to_string(),
-                    })?;
+                let trans_child =
+                    trans_ind
+                        .get_child(orig_child.name.as_str())
+                        .ok_or_else(|| CoreError::WorldDiffViolation {
+                            path: format!("/Building[{}]/indoors/{}", cabin_name, orig_child.name),
+                            detail: "Cabin interior property missing".to_string(),
+                        })?;
                 let orig_c = canonicalize_element(orig_child)?;
                 let trans_c = canonicalize_element(trans_child)?;
                 if orig_c != trans_c {

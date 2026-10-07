@@ -1,6 +1,6 @@
+use crate::core::errors::CoreError;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
-use crate::core::errors::CoreError;
 
 pub struct StagingArea {
     pub path: PathBuf,

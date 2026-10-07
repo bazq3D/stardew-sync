@@ -1,11 +1,9 @@
-use std::io::Cursor;
-use xmltree::{Element, XMLNode};
 use crate::core::errors::CoreError;
-use crate::core::save::fingerprint::{
-    compute_migration_stable_fingerprint, verify_allowed_diff,
-};
+use crate::core::save::fingerprint::{compute_migration_stable_fingerprint, verify_allowed_diff};
 use crate::core::save::parser::{get_child_text, set_child_text, ParsedSave};
 use crate::core::save::validator::SaveValidator;
+use std::io::Cursor;
+use xmltree::{Element, XMLNode};
 
 #[derive(Debug, Clone)]
 pub struct MigrationResult {
@@ -38,21 +36,23 @@ impl HostMigrator {
         SaveValidator::validate_structural(&source_save)?;
 
         // 2. Validate multiplayer prerequisites
-        let (target_fh, target_cabin) = SaveValidator::validate_multiplayer_for_migration(
-            &source_save,
-            target_player_id,
-        )?;
+        let (target_fh, target_cabin) =
+            SaveValidator::validate_multiplayer_for_migration(&source_save, target_player_id)?;
 
         let previous_host_id = source_save.metadata.host_player.unique_multiplayer_id;
         let new_host_id = target_fh.unique_multiplayer_id;
         let target_cabin_name = target_cabin.indoors_name.clone();
 
         // 3. Extract XML element references and compute baseline fingerprints
-        let orig_player_elem = source_save.root.get_child("player")
+        let orig_player_elem = source_save
+            .root
+            .get_child("player")
             .ok_or_else(|| CoreError::Validation("Missing <player> element".to_string()))?;
 
         let orig_farmhand_elem = find_farmhand_element_by_id(&source_save.root, target_player_id)?
-            .ok_or_else(|| CoreError::Migration("Target farmhand element not found in DOM".to_string()))?;
+            .ok_or_else(|| {
+                CoreError::Migration("Target farmhand element not found in DOM".to_string())
+            })?;
 
         let prev_host_stable_fp = compute_migration_stable_fingerprint(orig_player_elem)?;
         let target_player_stable_fp = compute_migration_stable_fingerprint(&orig_farmhand_elem)?;
@@ -68,13 +68,21 @@ impl HostMigrator {
         let mut new_host_elem = orig_farmhand_elem.clone();
         new_host_elem.name = "player".to_string();
         set_child_text(&mut new_host_elem, "homeLocation", "FarmHouse");
-        set_child_text(&mut new_host_elem, "houseUpgradeLevel", &farmhouse_upgrade.to_string());
+        set_child_text(
+            &mut new_host_elem,
+            "houseUpgradeLevel",
+            &farmhouse_upgrade.to_string(),
+        );
 
         // Prepare new farmhand element (cloned from original host)
         let mut new_farmhand_elem = orig_player_elem.clone();
         new_farmhand_elem.name = "farmhand".to_string();
         set_child_text(&mut new_farmhand_elem, "homeLocation", &target_cabin_name);
-        set_child_text(&mut new_farmhand_elem, "houseUpgradeLevel", &cabin_upgrade.to_string());
+        set_child_text(
+            &mut new_farmhand_elem,
+            "houseUpgradeLevel",
+            &cabin_upgrade.to_string(),
+        );
 
         // Replace <player> with new host element
         replace_root_player(&mut transformed_root, new_host_elem)?;
@@ -107,9 +115,8 @@ impl HostMigrator {
         )?;
 
         // 8. Farmer Fingerprint Assertions
-        let new_host_actual_fp = compute_migration_stable_fingerprint(
-            re_parsed.root.get_child("player").unwrap(),
-        )?;
+        let new_host_actual_fp =
+            compute_migration_stable_fingerprint(re_parsed.root.get_child("player").unwrap())?;
         if new_host_actual_fp != target_player_stable_fp {
             return Err(CoreError::FingerprintMismatch {
                 name: target_fh.name.clone(),
@@ -119,9 +126,12 @@ impl HostMigrator {
             });
         }
 
-        let new_farmhand_actual_elem = find_farmhand_element_by_id(&re_parsed.root, previous_host_id)?
-            .ok_or_else(|| CoreError::Migration("New farmhand not found in re-parsed DOM".to_string()))?;
-        let new_farmhand_actual_fp = compute_migration_stable_fingerprint(&new_farmhand_actual_elem)?;
+        let new_farmhand_actual_elem =
+            find_farmhand_element_by_id(&re_parsed.root, previous_host_id)?.ok_or_else(|| {
+                CoreError::Migration("New farmhand not found in re-parsed DOM".to_string())
+            })?;
+        let new_farmhand_actual_fp =
+            compute_migration_stable_fingerprint(&new_farmhand_actual_elem)?;
         if new_farmhand_actual_fp != prev_host_stable_fp {
             return Err(CoreError::FingerprintMismatch {
                 name: source_save.metadata.host_player.name.clone(),
@@ -153,7 +163,9 @@ fn replace_root_player(root: &mut Element, new_player: Element) -> Result<(), Co
             }
         }
     }
-    Err(CoreError::Validation("Could not find <player> in root to replace".to_string()))
+    Err(CoreError::Validation(
+        "Could not find <player> in root to replace".to_string(),
+    ))
 }
 
 fn replace_cabin_farmhand(
@@ -161,13 +173,18 @@ fn replace_cabin_farmhand(
     target_cabin_name: &str,
     new_farmhand: Element,
 ) -> Result<(), CoreError> {
-    let locations = root.get_mut_child("locations")
+    let locations = root
+        .get_mut_child("locations")
         .ok_or_else(|| CoreError::Validation("Missing <locations> in root".to_string()))?;
 
     for loc in &mut locations.children {
         if let XMLNode::Element(loc_elem) = loc {
             let loc_name = get_child_text(loc_elem, "name").unwrap_or_default();
-            let loc_type = loc_elem.attributes.get("type").map(|s| s.as_str()).unwrap_or("");
+            let loc_type = loc_elem
+                .attributes
+                .get("type")
+                .map(|s| s.as_str())
+                .unwrap_or("");
 
             if loc_name == "Farm" || loc_type.ends_with("Farm") {
                 if let Some(buildings) = loc_elem.get_mut_child("buildings") {
@@ -202,7 +219,10 @@ fn replace_cabin_farmhand(
     )))
 }
 
-fn find_farmhand_element_by_id(root: &Element, player_id: i64) -> Result<Option<Element>, CoreError> {
+fn find_farmhand_element_by_id(
+    root: &Element,
+    player_id: i64,
+) -> Result<Option<Element>, CoreError> {
     if let Some(locations) = root.get_child("locations") {
         for loc in &locations.children {
             if let XMLNode::Element(loc_elem) = loc {
@@ -211,7 +231,8 @@ fn find_farmhand_element_by_id(root: &Element, player_id: i64) -> Result<Option<
                         if let XMLNode::Element(b_elem) = b {
                             if let Some(indoors) = b_elem.get_child("indoors") {
                                 if let Some(fh) = indoors.get_child("farmhand") {
-                                    if let Some(id_str) = get_child_text(fh, "UniqueMultiplayerID") {
+                                    if let Some(id_str) = get_child_text(fh, "UniqueMultiplayerID")
+                                    {
                                         if let Ok(id) = id_str.parse::<i64>() {
                                             if id == player_id {
                                                 return Ok(Some(fh.clone()));

@@ -1,8 +1,8 @@
-use std::path::Path;
-use std::io::Cursor;
-use xmltree::Element;
 use crate::core::errors::CoreError;
 use crate::core::save::parser::{get_child_text, ParsedSave};
+use std::io::Cursor;
+use std::path::Path;
+use xmltree::Element;
 
 pub struct SaveValidator;
 
@@ -17,7 +17,8 @@ impl SaveValidator {
             )));
         }
 
-        let folder_name = folder_path.file_name()
+        let folder_name = folder_path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("");
 
@@ -29,7 +30,9 @@ impl SaveValidator {
             )));
         }
 
-        let primary_save_path = if !folder_name.is_empty() && folder_path.join(folder_name).is_file() {
+        let primary_save_path = if !folder_name.is_empty()
+            && folder_path.join(folder_name).is_file()
+        {
             folder_path.join(folder_name)
         } else {
             let mut candidate = None;
@@ -38,16 +41,18 @@ impl SaveValidator {
                 let path = entry.path();
                 if path.is_file() {
                     let fname = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if fname != "SaveGameInfo" && !fname.ends_with("_old") && !fname.ends_with(".json") {
+                    if fname != "SaveGameInfo"
+                        && !fname.ends_with("_old")
+                        && !fname.ends_with(".json")
+                    {
                         candidate = Some(path);
                         break;
                     }
                 }
             }
-            candidate.ok_or_else(|| CoreError::Validation(format!(
-                "No primary save file found in {:?}",
-                folder_path
-            )))?
+            candidate.ok_or_else(|| {
+                CoreError::Validation(format!("No primary save file found in {:?}", folder_path))
+            })?
         };
 
         if !save_game_info_path.is_file() {
@@ -85,14 +90,20 @@ impl SaveValidator {
 
         let host = &parsed.metadata.host_player;
         if host.name.trim().is_empty() {
-            return Err(CoreError::Validation("Host player has empty name".to_string()));
+            return Err(CoreError::Validation(
+                "Host player has empty name".to_string(),
+            ));
         }
         if host.unique_multiplayer_id == 0 {
-            return Err(CoreError::Validation("Host player UniqueMultiplayerID cannot be 0".to_string()));
+            return Err(CoreError::Validation(
+                "Host player UniqueMultiplayerID cannot be 0".to_string(),
+            ));
         }
 
         // Verify Farm location exists
-        let has_farm = parsed.root.get_child("locations")
+        let has_farm = parsed
+            .root
+            .get_child("locations")
             .map(|locs| {
                 locs.children.iter().any(|node| {
                     if let xmltree::XMLNode::Element(e) = node {
@@ -107,7 +118,9 @@ impl SaveValidator {
             .unwrap_or(false);
 
         if !has_farm {
-            return Err(CoreError::Validation("Save file does not contain a Farm location".to_string()));
+            return Err(CoreError::Validation(
+                "Save file does not contain a Farm location".to_string(),
+            ));
         }
 
         Ok(())
@@ -118,7 +131,13 @@ impl SaveValidator {
     pub fn validate_multiplayer_for_migration(
         parsed: &ParsedSave,
         target_player_id: i64,
-    ) -> Result<(&crate::core::save::parser::PlayerSummary, &crate::core::save::parser::CabinSummary), CoreError> {
+    ) -> Result<
+        (
+            &crate::core::save::parser::PlayerSummary,
+            &crate::core::save::parser::CabinSummary,
+        ),
+        CoreError,
+    > {
         let host = &parsed.metadata.host_player;
 
         if host.unique_multiplayer_id == target_player_id {
@@ -189,18 +208,24 @@ impl SaveValidator {
         }
 
         // 2. Previous host must be in the specified cabin
-        let cabin = transformed_save.metadata.cabins.iter()
+        let cabin = transformed_save
+            .metadata
+            .cabins
+            .iter()
             .find(|c| c.indoors_name == target_cabin_name)
-            .ok_or_else(|| CoreError::Validation(format!(
-                "Post-migration check failed: cabin '{}' not found",
-                target_cabin_name
-            )))?;
+            .ok_or_else(|| {
+                CoreError::Validation(format!(
+                    "Post-migration check failed: cabin '{}' not found",
+                    target_cabin_name
+                ))
+            })?;
 
-        let farmhand = cabin.farmhand.as_ref()
-            .ok_or_else(|| CoreError::Validation(format!(
+        let farmhand = cabin.farmhand.as_ref().ok_or_else(|| {
+            CoreError::Validation(format!(
                 "Post-migration check failed: cabin '{}' has no farmhand",
                 target_cabin_name
-            )))?;
+            ))
+        })?;
 
         if farmhand.unique_multiplayer_id != expected_prev_host_id {
             return Err(CoreError::Validation(format!(

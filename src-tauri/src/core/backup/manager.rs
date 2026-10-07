@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
-use chrono::{DateTime, Utc};
-use sha2::{Digest, Sha256};
-use uuid::Uuid;
 use crate::core::backup::manifest::{BackupFileEntry, BackupManifest, BackupType};
 use crate::core::errors::CoreError;
+use chrono::{DateTime, Utc};
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
 pub struct BackupManager;
 
@@ -25,7 +25,8 @@ impl BackupManager {
             )));
         }
 
-        let folder_name = save_dir.file_name()
+        let folder_name = save_dir
+            .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| CoreError::Backup("Invalid save directory name".to_string()))?;
 

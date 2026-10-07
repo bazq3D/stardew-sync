@@ -1,9 +1,9 @@
+use crate::core::errors::CoreError;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::{Duration, Instant, SystemTime};
-use sha2::{Digest, Sha256};
 use sysinfo::System;
-use crate::core::errors::CoreError;
 
 pub trait ProcessChecker: Send + Sync {
     fn is_process_running(&self, target_names: &[&str]) -> bool;
@@ -16,7 +16,7 @@ impl ProcessChecker for SystemProcessChecker {
         let mut sys = System::new();
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
-        for (_pid, process) in sys.processes() {
+        for process in sys.processes().values() {
             let proc_name = process.name().to_string_lossy().to_lowercase();
             for target in target_names {
                 let target_lower = target.to_lowercase();
@@ -31,6 +31,12 @@ impl ProcessChecker for SystemProcessChecker {
 
 pub struct MockProcessChecker {
     pub running_processes: std::sync::Mutex<Vec<String>>,
+}
+
+impl Default for MockProcessChecker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MockProcessChecker {

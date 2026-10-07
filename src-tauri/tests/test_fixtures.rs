@@ -3,7 +3,8 @@ pub const PLAYER_B_ID: i64 = 2000000000002;
 pub const CABIN_NAME: &str = "Cabin_stone_1";
 
 pub fn generate_test_save_xml() -> String {
-    format!(r#"<?xml version="1.0" encoding="utf-8"?>
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
 <SaveGame xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <player>
     <name>PlayerA</name>
@@ -128,7 +129,8 @@ pub fn generate_test_save_xml() -> String {
 }
 
 pub fn generate_test_save_game_info_xml() -> String {
-    format!(r#"<?xml version="1.0" encoding="utf-8"?>
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
 <Farmer xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <name>PlayerA</name>
   <UniqueMultiplayerID>{a_id}</UniqueMultiplayerID>

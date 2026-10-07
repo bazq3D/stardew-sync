@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use crate::core::errors::CoreError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::core::errors::CoreError;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TransactionState {
@@ -26,7 +26,10 @@ pub struct RecoveryManager;
 
 impl RecoveryManager {
     /// Writes an active transaction recovery manifest to disk.
-    pub fn write_manifest(manifest_path: &Path, manifest: &RecoveryManifest) -> Result<(), CoreError> {
+    pub fn write_manifest(
+        manifest_path: &Path,
+        manifest: &RecoveryManifest,
+    ) -> Result<(), CoreError> {
         if let Some(parent) = manifest_path.parent() {
             std::fs::create_dir_all(parent)?;
         }

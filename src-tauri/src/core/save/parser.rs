@@ -1,6 +1,6 @@
+use crate::core::errors::CoreError;
 use std::io::Cursor;
 use xmltree::{Element, XMLNode};
-use crate::core::errors::CoreError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerSummary {
@@ -66,7 +66,8 @@ impl ParsedSave {
             .perform_indent(false)
             .write_document_declaration(true);
 
-        self.root.write_with_config(&mut buffer, config)
+        self.root
+            .write_with_config(&mut buffer, config)
             .map_err(|e| CoreError::XmlWrite(format!("Failed to serialize XML: {}", e)))?;
 
         String::from_utf8(buffer)
@@ -92,15 +93,21 @@ pub fn set_child_text(elem: &mut Element, child_name: &str, text: &str) {
 }
 
 fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
-    let player_elem = root.get_child("player")
-        .ok_or_else(|| CoreError::Validation("Missing '<player>' element in SaveGame".to_string()))?;
+    let player_elem = root.get_child("player").ok_or_else(|| {
+        CoreError::Validation("Missing '<player>' element in SaveGame".to_string())
+    })?;
 
     let host_name = get_child_text(player_elem, "name").unwrap_or_else(|| "Unknown".to_string());
     let host_id: i64 = get_child_text(player_elem, "UniqueMultiplayerID")
         .as_deref()
         .and_then(|s| s.parse().ok())
-        .ok_or_else(|| CoreError::Validation("Missing or invalid 'UniqueMultiplayerID' in host <player>".to_string()))?;
-    let host_home = get_child_text(player_elem, "homeLocation").unwrap_or_else(|| "FarmHouse".to_string());
+        .ok_or_else(|| {
+            CoreError::Validation(
+                "Missing or invalid 'UniqueMultiplayerID' in host <player>".to_string(),
+            )
+        })?;
+    let host_home =
+        get_child_text(player_elem, "homeLocation").unwrap_or_else(|| "FarmHouse".to_string());
     let host_upgrade: u32 = get_child_text(player_elem, "houseUpgradeLevel")
         .as_deref()
         .and_then(|s| s.parse().ok())
@@ -116,7 +123,8 @@ fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
         cabin_indoors_name: None,
     };
 
-    let current_season = get_child_text(root, "currentSeason").unwrap_or_else(|| "spring".to_string());
+    let current_season =
+        get_child_text(root, "currentSeason").unwrap_or_else(|| "spring".to_string());
     let day_of_month: u32 = get_child_text(root, "dayOfMonth")
         .as_deref()
         .and_then(|s| s.parse().ok())
@@ -134,7 +142,11 @@ fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
         for loc in &locations.children {
             if let XMLNode::Element(loc_elem) = loc {
                 let loc_name = get_child_text(loc_elem, "name").unwrap_or_default();
-                let loc_type = loc_elem.attributes.get("type").map(|s| s.as_str()).unwrap_or("");
+                let loc_type = loc_elem
+                    .attributes
+                    .get("type")
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
 
                 if loc_name == "Farm" || loc_type.ends_with("Farm") {
                     if let Some(buildings) = loc_elem.get_child("buildings") {
@@ -167,14 +179,18 @@ fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
 
 fn extract_cabin_summary(building: &Element) -> Result<Option<CabinSummary>, CoreError> {
     let building_type = get_child_text(building, "buildingType").unwrap_or_default();
-    
+
     // Check if building has an indoors of type Cabin
     let indoors = match building.get_child("indoors") {
         Some(ind) => ind,
         None => return Ok(None),
     };
 
-    let indoors_type = indoors.attributes.get("type").map(|s| s.as_str()).unwrap_or("");
+    let indoors_type = indoors
+        .attributes
+        .get("type")
+        .map(|s| s.as_str())
+        .unwrap_or("");
     if !indoors_type.ends_with("Cabin") && !building_type.contains("Cabin") {
         return Ok(None);
     }
@@ -200,14 +216,15 @@ fn extract_cabin_summary(building: &Element) -> Result<Option<CabinSummary>, Cor
         let id_res = get_child_text(fh_elem, "UniqueMultiplayerID")
             .as_deref()
             .and_then(|s| s.parse().ok());
-        
+
         if let Some(id) = id_res {
-            let home = get_child_text(fh_elem, "homeLocation").unwrap_or_else(|| indoors_name.clone());
+            let home =
+                get_child_text(fh_elem, "homeLocation").unwrap_or_else(|| indoors_name.clone());
             let upgrade = get_child_text(fh_elem, "houseUpgradeLevel")
                 .as_deref()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
-            
+
             Some(PlayerSummary {
                 name,
                 unique_multiplayer_id: id,

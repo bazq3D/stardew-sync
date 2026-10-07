@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use crate::core::errors::CoreError;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiscoveredSave {

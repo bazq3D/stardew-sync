@@ -1,11 +1,11 @@
-use std::path::Path;
-use chrono::Utc;
-use uuid::Uuid;
 use crate::core::backup::manager::BackupManager;
 use crate::core::backup::manifest::BackupType;
 use crate::core::errors::CoreError;
 use crate::core::save::validator::SaveValidator;
 use crate::core::transaction::recovery::{RecoveryManager, RecoveryManifest, TransactionState};
+use chrono::Utc;
+use std::path::Path;
+use uuid::Uuid;
 
 pub struct SafeReplacer;
 
@@ -26,12 +26,7 @@ impl SafeReplacer {
 
         // 2. Verified safety snapshot of live save
         if live_dir.is_dir() {
-            BackupManager::create_backup(
-                live_dir,
-                backups_root,
-                BackupType::PreHostSwitch,
-                false,
-            )?;
+            BackupManager::create_backup(live_dir, backups_root, BackupType::PreHostSwitch, false)?;
         }
 
         let tx_id = Uuid::new_v4().to_string();
@@ -63,7 +58,10 @@ impl SafeReplacer {
                 if rollback_dir.exists() && !live_dir.exists() {
                     let _ = std::fs::rename(&rollback_dir, live_dir);
                 }
-                return Err(CoreError::Transaction(format!("Failed to move staged save to live: {}", e)));
+                return Err(CoreError::Transaction(format!(
+                    "Failed to move staged save to live: {}",
+                    e
+                )));
             }
 
             // Post-verify live directory

@@ -27,10 +27,7 @@ pub enum CoreError {
     },
 
     #[error("World state diff violation at XML path '{path}': {detail}")]
-    WorldDiffViolation {
-        path: String,
-        detail: String,
-    },
+    WorldDiffViolation { path: String, detail: String },
 
     #[error("Backup error: {0}")]
     Backup(String),
@@ -43,23 +40,16 @@ pub enum CoreError {
     },
 
     #[error("Cannot delete protected backup '{id}' of type '{backup_type}'")]
-    ProtectedBackupDeletion {
-        id: String,
-        backup_type: String,
-    },
+    ProtectedBackupDeletion { id: String, backup_type: String },
 
     #[error("Transaction error: {0}")]
     Transaction(String),
 
     #[error("Game process is currently running: '{process_name}'. Operations on save files are strictly forbidden.")]
-    GameRunning {
-        process_name: String,
-    },
+    GameRunning { process_name: String },
 
     #[error("Save settle timeout: save files did not stabilize within {timeout_secs} seconds")]
-    SaveSettleTimeout {
-        timeout_secs: u64,
-    },
+    SaveSettleTimeout { timeout_secs: u64 },
 
     #[error("Save directory not found at path: {0}")]
     SaveDirectoryNotFound(PathBuf),
