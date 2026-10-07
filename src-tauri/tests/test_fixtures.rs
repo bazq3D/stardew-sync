@@ -153,3 +153,65 @@ pub fn generate_test_save_game_info_xml() -> String {
         a_id = PLAYER_A_ID
     )
 }
+
+#[allow(dead_code)]
+pub fn generate_test_save_1_6_xml() -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<SaveGame xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <player>
+    <name>PlayerA</name>
+    <UniqueMultiplayerID>{a_id}</UniqueMultiplayerID>
+    <homeLocation>FarmHouse</homeLocation>
+    <houseUpgradeLevel>2</houseUpgradeLevel>
+    <farmName>Emerald</farmName>
+    <isMale>true</isMale>
+    <items>
+      <Item xsi:type="Tool">
+        <name>Iridium Pickaxe</name>
+        <upgradeLevel>4</upgradeLevel>
+      </Item>
+    </items>
+  </player>
+  <farmhands>
+    <Farmer>
+      <name>PlayerB</name>
+      <UniqueMultiplayerID>{b_id}</UniqueMultiplayerID>
+      <homeLocation>{cabin_name}</homeLocation>
+      <houseUpgradeLevel>1</houseUpgradeLevel>
+      <farmName>Emerald</farmName>
+      <isMale>false</isMale>
+      <items>
+        <Item xsi:type="Tool">
+          <name>Fiberglass Rod</name>
+          <upgradeLevel>2</upgradeLevel>
+        </Item>
+      </items>
+    </Farmer>
+  </farmhands>
+  <locations>
+    <GameLocation xsi:type="Farm">
+      <name>Farm</name>
+      <buildings>
+        <Building>
+          <buildingType>Stone Cabin</buildingType>
+          <tileX>42</tileX>
+          <tileY>18</tileY>
+          <indoors xsi:type="Cabin">
+            <uniqueName>{cabin_name}</uniqueName>
+            <upgradeLevel>1</upgradeLevel>
+            <farmhandReference>{b_id}</farmhandReference>
+          </indoors>
+        </Building>
+      </buildings>
+    </GameLocation>
+  </locations>
+  <currentSeason>summer</currentSeason>
+  <dayOfMonth>18</dayOfMonth>
+  <year>2</year>
+</SaveGame>"#,
+        a_id = PLAYER_A_ID,
+        b_id = PLAYER_B_ID,
+        cabin_name = CABIN_NAME
+    )
+}

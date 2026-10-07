@@ -4,7 +4,8 @@ use stardew_sync_core::{
     compute_full_farmer_fingerprint, compute_migration_stable_fingerprint, HostMigrator, ParsedSave,
 };
 use test_fixtures::{
-    generate_test_save_game_info_xml, generate_test_save_xml, CABIN_NAME, PLAYER_A_ID, PLAYER_B_ID,
+    generate_test_save_1_6_xml, generate_test_save_game_info_xml, generate_test_save_xml,
+    CABIN_NAME, PLAYER_A_ID, PLAYER_B_ID,
 };
 
 #[test]
@@ -254,4 +255,59 @@ fn test_rejects_malformed_xml() {
         .expect_err("Malformed XML must fail validation");
 
     assert!(err.to_string().contains("XML parsing error"));
+}
+
+#[test]
+fn test_stardew_1_6_root_farmhands_migration_and_roundtrip() {
+    let save_1_6_xml = generate_test_save_1_6_xml();
+    let info_xml = generate_test_save_game_info_xml();
+
+    let orig_parsed = ParsedSave::parse(&save_1_6_xml).unwrap();
+    assert_eq!(orig_parsed.metadata.host_player.name, "PlayerA");
+    assert_eq!(orig_parsed.metadata.cabins.len(), 1);
+    assert_eq!(
+        orig_parsed.metadata.cabins[0]
+            .farmhand
+            .as_ref()
+            .unwrap()
+            .name,
+        "PlayerB"
+    );
+
+    // 1. Migrate A -> B
+    let step1 = HostMigrator::migrate(&save_1_6_xml, &info_xml, PLAYER_B_ID)
+        .expect("1.6 migration A -> B should succeed");
+
+    assert_eq!(step1.previous_host_id, PLAYER_A_ID);
+    assert_eq!(step1.new_host_id, PLAYER_B_ID);
+
+    let parsed_step1 = ParsedSave::parse(&step1.transformed_save_xml).unwrap();
+    assert_eq!(parsed_step1.metadata.host_player.name, "PlayerB");
+    assert_eq!(
+        parsed_step1.metadata.cabins[0]
+            .farmhand
+            .as_ref()
+            .unwrap()
+            .name,
+        "PlayerA"
+    );
+
+    // 2. Roundtrip B -> A
+    let step2 = HostMigrator::migrate(
+        &step1.transformed_save_xml,
+        &step1.transformed_save_game_info_xml,
+        PLAYER_A_ID,
+    )
+    .expect("1.6 migration B -> A should succeed");
+
+    let parsed_step2 = ParsedSave::parse(&step2.transformed_save_xml).unwrap();
+    assert_eq!(parsed_step2.metadata.host_player.name, "PlayerA");
+    assert_eq!(
+        parsed_step2.metadata.cabins[0]
+            .farmhand
+            .as_ref()
+            .unwrap()
+            .name,
+        "PlayerB"
+    );
 }

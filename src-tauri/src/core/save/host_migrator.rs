@@ -63,6 +63,7 @@ impl HostMigrator {
 
         // 4. Perform structured XML transformation on cloned DOM
         let mut transformed_root = source_save.root.clone();
+        let has_root_farmhands = transformed_root.get_child("farmhands").is_some();
 
         // Prepare new host element (cloned from target farmhand)
         let mut new_host_elem = orig_farmhand_elem.clone();
@@ -76,7 +77,11 @@ impl HostMigrator {
 
         // Prepare new farmhand element (cloned from original host)
         let mut new_farmhand_elem = orig_player_elem.clone();
-        new_farmhand_elem.name = "farmhand".to_string();
+        if has_root_farmhands {
+            new_farmhand_elem.name = "Farmer".to_string();
+        } else {
+            new_farmhand_elem.name = "farmhand".to_string();
+        }
         set_child_text(&mut new_farmhand_elem, "homeLocation", &target_cabin_name);
         set_child_text(
             &mut new_farmhand_elem,
@@ -87,8 +92,24 @@ impl HostMigrator {
         // Replace <player> with new host element
         replace_root_player(&mut transformed_root, new_host_elem)?;
 
-        // Replace <farmhand> inside target cabin with new farmhand element
-        replace_cabin_farmhand(&mut transformed_root, &target_cabin_name, new_farmhand_elem)?;
+        if has_root_farmhands {
+            // Replace inside root <farmhands>
+            replace_root_farmhand(
+                &mut transformed_root,
+                target_player_id,
+                new_farmhand_elem.clone(),
+            )?;
+            // Update cabin indoors: update farmhandReference and/or legacy farmhand
+            update_cabin_farmhand_reference(
+                &mut transformed_root,
+                &target_cabin_name,
+                previous_host_id,
+                Some(new_farmhand_elem),
+            )?;
+        } else {
+            // Replace <farmhand> inside target cabin with new farmhand element
+            replace_cabin_farmhand(&mut transformed_root, &target_cabin_name, new_farmhand_elem)?;
+        }
 
         // 5. Build transformed SaveGameInfo
         let mut transformed_info_elem = Element::parse(Cursor::new(save_game_info_xml.as_bytes()))
@@ -168,6 +189,89 @@ fn replace_root_player(root: &mut Element, new_player: Element) -> Result<(), Co
     ))
 }
 
+fn replace_root_farmhand(
+    root: &mut Element,
+    target_player_id: i64,
+    new_farmhand: Element,
+) -> Result<(), CoreError> {
+    if let Some(farmhands) = root.get_mut_child("farmhands") {
+        for node in &mut farmhands.children {
+            if let XMLNode::Element(child) = node {
+                if let Some(id_str) = get_child_text(child, "UniqueMultiplayerID") {
+                    if let Ok(id) = id_str.parse::<i64>() {
+                        if id == target_player_id {
+                            *child = new_farmhand;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Err(CoreError::Migration(format!(
+        "Target farmhand ID {} not found in <farmhands>",
+        target_player_id
+    )))
+}
+
+fn update_cabin_farmhand_reference(
+    root: &mut Element,
+    target_cabin_name: &str,
+    new_farmhand_id: i64,
+    legacy_farmhand: Option<Element>,
+) -> Result<(), CoreError> {
+    let locations = root
+        .get_mut_child("locations")
+        .ok_or_else(|| CoreError::Validation("Missing <locations> in root".to_string()))?;
+
+    for loc in &mut locations.children {
+        if let XMLNode::Element(loc_elem) = loc {
+            let loc_name = get_child_text(loc_elem, "name").unwrap_or_default();
+            let loc_type = loc_elem
+                .attributes
+                .get("type")
+                .map(|s| s.as_str())
+                .unwrap_or("");
+
+            if loc_name == "Farm" || loc_type.ends_with("Farm") {
+                if let Some(buildings) = loc_elem.get_mut_child("buildings") {
+                    for b in &mut buildings.children {
+                        if let XMLNode::Element(b_elem) = b {
+                            if let Some(indoors) = b_elem.get_mut_child("indoors") {
+                                let name = get_child_text(indoors, "uniqueName")
+                                    .or_else(|| get_child_text(indoors, "name"))
+                                    .unwrap_or_default();
+
+                                if name == target_cabin_name {
+                                    if indoors.get_child("farmhandReference").is_some() {
+                                        set_child_text(
+                                            indoors,
+                                            "farmhandReference",
+                                            &new_farmhand_id.to_string(),
+                                        );
+                                    }
+                                    if let Some(ref leg_fh) = legacy_farmhand {
+                                        for ind_child in &mut indoors.children {
+                                            if let XMLNode::Element(c_elem) = ind_child {
+                                                if c_elem.name == "farmhand" {
+                                                    *c_elem = leg_fh.clone();
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn replace_cabin_farmhand(
     root: &mut Element,
     target_cabin_name: &str,
@@ -223,6 +327,22 @@ fn find_farmhand_element_by_id(
     root: &Element,
     player_id: i64,
 ) -> Result<Option<Element>, CoreError> {
+    // 1. Check root <farmhands> list (Stardew 1.6+)
+    if let Some(farmhands) = root.get_child("farmhands") {
+        for child in &farmhands.children {
+            if let XMLNode::Element(fh) = child {
+                if let Some(id_str) = get_child_text(fh, "UniqueMultiplayerID") {
+                    if let Ok(id) = id_str.parse::<i64>() {
+                        if id == player_id {
+                            return Ok(Some(fh.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Fallback to legacy <locations> cabins
     if let Some(locations) = root.get_child("locations") {
         for loc in &locations.children {
             if let XMLNode::Element(loc_elem) = loc {

@@ -80,41 +80,88 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
+    // Resolve farm directory: either source_path itself or a subfolder containing SaveGameInfo
+    let farm_path = if source_path.join("SaveGameInfo").is_file() {
+        source_path.clone()
+    } else {
+        let mut sub_farm = None;
+        for entry in fs::read_dir(&source_path)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() && entry.path().join("SaveGameInfo").is_file() {
+                sub_farm = Some(entry.path());
+                break;
+            }
+        }
+        match sub_farm {
+            Some(p) => {
+                println!(
+                    "  Discovered farm directory inside supplied folder: {}",
+                    p.display()
+                );
+                p
+            }
+            None => {
+                eprintln!(
+                    "[FATAL ERROR] Neither '{}' nor any immediate subfolder contains 'SaveGameInfo'.",
+                    source_path.display()
+                );
+                std::process::exit(1);
+            }
+        }
+    };
+
     // 2. INITIAL READ-ONLY HASHING OF SOURCE COPY
     println!("\n[1/7] Computing initial hashes of manually supplied copy...");
-    let initial_hashes = hash_directory_files(&source_path)?;
+    let initial_hashes = hash_directory_files(&farm_path)?;
     for (file, hash) in &initial_hashes {
         println!("  - {}: {}", file, hash);
     }
 
     // 3. PRE-FLIGHT READ-ONLY ANALYSIS
     println!("\n[2/7] Pre-flight structural analysis...");
-    let dir_name = source_path
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-    let primary_save_file = source_path.join(&dir_name);
-    let save_game_info_file = source_path.join("SaveGameInfo");
+    let dir_name = farm_path.file_name().unwrap().to_string_lossy().to_string();
+    let primary_save_file = if farm_path.join(&dir_name).is_file() {
+        farm_path.join(&dir_name)
+    } else {
+        let mut candidate = None;
+        for entry in fs::read_dir(&farm_path)? {
+            let entry = entry?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            if entry.file_type()?.is_file()
+                && !name.starts_with("SaveGameInfo")
+                && !name.ends_with("_old")
+            {
+                candidate = Some(entry.path());
+                break;
+            }
+        }
+        candidate.unwrap_or_else(|| farm_path.join(&dir_name))
+    };
+    let save_game_info_file = farm_path.join("SaveGameInfo");
 
     if !primary_save_file.is_file() {
         eprintln!(
             "[FATAL ERROR] Primary save file '{}' not found in '{}'",
             dir_name,
-            source_path.display()
+            farm_path.display()
         );
         std::process::exit(1);
     }
     if !save_game_info_file.is_file() {
         eprintln!(
             "[FATAL ERROR] SaveGameInfo not found in '{}'",
-            source_path.display()
+            farm_path.display()
         );
         std::process::exit(1);
     }
 
-    let has_old_save = source_path.join(format!("{}_old", dir_name)).is_file();
-    let has_old_info = source_path.join("SaveGameInfo_old").is_file();
+    let has_old_save = farm_path
+        .join(format!(
+            "{}_old",
+            primary_save_file.file_name().unwrap().to_string_lossy()
+        ))
+        .is_file();
+    let has_old_info = farm_path.join("SaveGameInfo_old").is_file();
     println!("  - Primary save detected: YES");
     println!("  - SaveGameInfo detected: YES");
     println!(
@@ -365,7 +412,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n============================================================");
     println!("  SOURCE COPY IMMUTABILITY VERIFICATION");
     println!("============================================================");
-    let final_hashes = hash_directory_files(&source_path)?;
+    let final_hashes = hash_directory_files(&farm_path)?;
     let mut source_modified = false;
 
     for (file, initial_hash) in &initial_hashes {
@@ -401,7 +448,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 10. GENERATE REPORT
     generate_markdown_report(
-        &source_path,
+        &farm_path,
         &initial_hashes,
         &final_hashes,
         &host.name,
@@ -417,6 +464,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn locate_farmhand_element(root: &xmltree::Element, player_id: i64) -> Option<xmltree::Element> {
+    // 1. Check root <farmhands> list (Stardew 1.6+)
+    if let Some(farmhands) = root.get_child("farmhands") {
+        for child in &farmhands.children {
+            if let xmltree::XMLNode::Element(fh) = child {
+                if let Some(id_elem) = fh.get_child("UniqueMultiplayerID") {
+                    if let Some(text) = id_elem.get_text() {
+                        if text.trim().parse::<i64>().unwrap_or(0) == player_id {
+                            return Some(fh.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Fallback to legacy <locations> cabins
     if let Some(locations) = root.get_child("locations") {
         for loc in &locations.children {
             if let xmltree::XMLNode::Element(loc_elem) = loc {

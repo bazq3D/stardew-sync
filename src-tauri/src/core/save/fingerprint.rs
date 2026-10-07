@@ -92,6 +92,18 @@ pub fn verify_allowed_diff(
                 continue;
             }
 
+            if tag == "farmhands" {
+                // Allowed change: farmhands list has the swapped player updated
+                let trans_farmhands = transformed.get_child("farmhands").ok_or_else(|| {
+                    CoreError::WorldDiffViolation {
+                        path: "/SaveGame/farmhands".to_string(),
+                        detail: "Transformed XML is missing 'farmhands' element".to_string(),
+                    }
+                })?;
+                verify_farmhands_diff(orig_child, trans_farmhands)?;
+                continue;
+            }
+
             if tag == "locations" {
                 // Inspect locations with care
                 let trans_locations = transformed.get_child("locations").ok_or_else(|| {
@@ -341,7 +353,7 @@ fn verify_target_cabin_diff(
 
     for orig_node in &orig_ind.children {
         if let XMLNode::Element(orig_child) = orig_node {
-            if orig_child.name != "farmhand" {
+            if orig_child.name != "farmhand" && orig_child.name != "farmhandReference" {
                 let trans_child =
                     trans_ind
                         .get_child(orig_child.name.as_str())
@@ -359,6 +371,34 @@ fn verify_target_cabin_diff(
                 }
             }
         }
+    }
+
+    Ok(())
+}
+
+fn verify_farmhands_diff(
+    orig_farmhands: &Element,
+    trans_farmhands: &Element,
+) -> Result<(), CoreError> {
+    let orig_count = orig_farmhands
+        .children
+        .iter()
+        .filter(|n| matches!(n, XMLNode::Element(_)))
+        .count();
+    let trans_count = trans_farmhands
+        .children
+        .iter()
+        .filter(|n| matches!(n, XMLNode::Element(_)))
+        .count();
+
+    if orig_count != trans_count {
+        return Err(CoreError::WorldDiffViolation {
+            path: "/SaveGame/farmhands".to_string(),
+            detail: format!(
+                "Farmhands element count changed from {} to {}",
+                orig_count, trans_count
+            ),
+        });
     }
 
     Ok(())

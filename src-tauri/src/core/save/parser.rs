@@ -20,6 +20,7 @@ pub struct CabinSummary {
     pub indoors_name: String,
     pub upgrade_level: u32,
     pub farmhand: Option<PlayerSummary>,
+    pub farmhand_ref: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -134,9 +135,9 @@ fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(1);
 
-    // Locate Farm location buildings
+    // Locate Farm location buildings & cabins
     let mut cabins = Vec::new();
-    let mut farmhands = Vec::new();
+    let mut legacy_farmhands = Vec::new();
 
     if let Some(locations) = root.get_child("locations") {
         for loc in &locations.children {
@@ -152,9 +153,9 @@ fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
                     if let Some(buildings) = loc_elem.get_child("buildings") {
                         for b in &buildings.children {
                             if let XMLNode::Element(b_elem) = b {
-                                if let Some(cabin) = extract_cabin_summary(b_elem)? {
-                                    if let Some(ref fh) = cabin.farmhand {
-                                        farmhands.push(fh.clone());
+                                if let Some((cabin, legacy_fh)) = extract_cabin_summary(b_elem)? {
+                                    if let Some(fh) = legacy_fh {
+                                        legacy_farmhands.push(fh);
                                     }
                                     cabins.push(cabin);
                                 }
@@ -164,6 +165,63 @@ fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
                 }
             }
         }
+    }
+
+    // Locate farmhands: either from root <farmhands> (Stardew 1.6+) or from cabins (legacy)
+    let mut farmhands = Vec::new();
+    if let Some(root_farmhands) = root.get_child("farmhands") {
+        for child in &root_farmhands.children {
+            if let XMLNode::Element(fh_elem) = child {
+                let name = get_child_text(fh_elem, "name").unwrap_or_default();
+                let id_res = get_child_text(fh_elem, "UniqueMultiplayerID")
+                    .as_deref()
+                    .and_then(|s| s.parse::<i64>().ok());
+
+                if let Some(id) = id_res {
+                    let home = get_child_text(fh_elem, "homeLocation").unwrap_or_default();
+                    let upgrade = get_child_text(fh_elem, "houseUpgradeLevel")
+                        .as_deref()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
+
+                    // Find matching cabin by indoors_name == home or farmhandReference == id
+                    let mut matched = false;
+                    for cabin in &mut cabins {
+                        if cabin.indoors_name == home || cabin.farmhand_ref == Some(id) {
+                            let player = PlayerSummary {
+                                name: name.clone(),
+                                unique_multiplayer_id: id,
+                                home_location: if home.is_empty() {
+                                    cabin.indoors_name.clone()
+                                } else {
+                                    home.clone()
+                                },
+                                house_upgrade_level: upgrade,
+                                is_host: false,
+                                cabin_indoors_name: Some(cabin.indoors_name.clone()),
+                            };
+                            cabin.farmhand = Some(player.clone());
+                            farmhands.push(player);
+                            matched = true;
+                            break;
+                        }
+                    }
+
+                    if !matched {
+                        farmhands.push(PlayerSummary {
+                            name,
+                            unique_multiplayer_id: id,
+                            home_location: home,
+                            house_upgrade_level: upgrade,
+                            is_host: false,
+                            cabin_indoors_name: None,
+                        });
+                    }
+                }
+            }
+        }
+    } else {
+        farmhands = legacy_farmhands;
     }
 
     Ok(SaveMetadata {
@@ -177,7 +235,9 @@ fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
     })
 }
 
-fn extract_cabin_summary(building: &Element) -> Result<Option<CabinSummary>, CoreError> {
+fn extract_cabin_summary(
+    building: &Element,
+) -> Result<Option<(CabinSummary, Option<PlayerSummary>)>, CoreError> {
     let building_type = get_child_text(building, "buildingType").unwrap_or_default();
 
     // Check if building has an indoors of type Cabin
@@ -211,7 +271,11 @@ fn extract_cabin_summary(building: &Element) -> Result<Option<CabinSummary>, Cor
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
 
-    let farmhand = if let Some(fh_elem) = indoors.get_child("farmhand") {
+    let farmhand_ref = get_child_text(indoors, "farmhandReference")
+        .as_deref()
+        .and_then(|s| s.parse::<i64>().ok());
+
+    let (cabin_fh, legacy_fh) = if let Some(fh_elem) = indoors.get_child("farmhand") {
         let name = get_child_text(fh_elem, "name").unwrap_or_default();
         let id_res = get_child_text(fh_elem, "UniqueMultiplayerID")
             .as_deref()
@@ -225,27 +289,32 @@ fn extract_cabin_summary(building: &Element) -> Result<Option<CabinSummary>, Cor
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
 
-            Some(PlayerSummary {
+            let summary = PlayerSummary {
                 name,
                 unique_multiplayer_id: id,
                 home_location: home,
                 house_upgrade_level: upgrade,
                 is_host: false,
                 cabin_indoors_name: Some(indoors_name.clone()),
-            })
+            };
+            (Some(summary.clone()), Some(summary))
         } else {
-            None
+            (None, None)
         }
     } else {
-        None
+        (None, None)
     };
 
-    Ok(Some(CabinSummary {
-        building_type,
-        tile_x,
-        tile_y,
-        indoors_name,
-        upgrade_level,
-        farmhand,
-    }))
+    Ok(Some((
+        CabinSummary {
+            building_type,
+            tile_x,
+            tile_y,
+            indoors_name,
+            upgrade_level,
+            farmhand: cabin_fh,
+            farmhand_ref,
+        },
+        legacy_fh,
+    )))
 }
