@@ -13,13 +13,19 @@ pub use core::runtime::disposable::{
     DisposableIdentity, DisposableSaveManager, DisposableState, RuntimeBaselineManifest,
 };
 pub use core::runtime::guard::{ProductionGuard, PRODUCTION_FARM_FOLDER, PRODUCTION_GAME_ID};
-pub use core::runtime::observer::{CloudObserver, DirectoryObservationSnapshot, ObservationDelta};
+pub use core::runtime::observer::{
+    CloudObserver, DirectoryObservationSnapshot, GenerationIntegrityStatus, ObservationDelta,
+};
 pub use core::save::discovery::{discover_saves, DiscoveredSave};
 pub use core::save::fingerprint::{
     compute_full_farmer_fingerprint, compute_migration_stable_fingerprint, verify_allowed_diff,
 };
 pub use core::save::host_migrator::{HostMigrator, MigrationResult};
-pub use core::save::parser::{CabinSummary, ParsedSave, PlayerSummary, SaveMetadata};
+pub use core::save::parser::{
+    restore_xml_schema_instance_attributes, serialize_element, CabinSummary, ParsedSave,
+    PlayerSummary, SaveMetadata,
+};
+pub use core::save::platform::{PlatformCapabilities, SavePlatform, SaveStorageAdapter};
 pub use core::save::validator::SaveValidator;
 pub use core::transaction::recovery::{RecoveryManager, RecoveryManifest, TransactionState};
 pub use core::transaction::replace::SafeReplacer;

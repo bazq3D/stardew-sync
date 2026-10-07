@@ -1,6 +1,6 @@
 use crate::core::errors::CoreError;
 use crate::core::save::fingerprint::{compute_migration_stable_fingerprint, verify_allowed_diff};
-use crate::core::save::parser::{get_child_text, set_child_text, ParsedSave};
+use crate::core::save::parser::{get_child_text, serialize_element, set_child_text, ParsedSave};
 use crate::core::save::validator::SaveValidator;
 use std::io::Cursor;
 use xmltree::{Element, XMLNode};
@@ -368,17 +368,4 @@ fn find_farmhand_element_by_id(
         }
     }
     Ok(None)
-}
-
-fn serialize_element(elem: &Element) -> Result<String, CoreError> {
-    let mut buffer = Vec::new();
-    let config = xmltree::EmitterConfig::new()
-        .perform_indent(false)
-        .write_document_declaration(true);
-
-    elem.write_with_config(&mut buffer, config)
-        .map_err(|e| CoreError::XmlWrite(format!("Failed to serialize XML: {}", e)))?;
-
-    String::from_utf8(buffer)
-        .map_err(|e| CoreError::XmlWrite(format!("Serialized XML is invalid UTF-8: {}", e)))
 }

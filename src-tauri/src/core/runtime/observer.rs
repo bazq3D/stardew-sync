@@ -123,4 +123,131 @@ impl CloudObserver {
             external_cloud_activity_suspected,
         }
     }
+
+    /// Verifies that the files in `actual_dir` match the `expected_snapshot`.
+    /// If an optional `stale_reference` is supplied (e.g. State A when expecting State B),
+    /// checks whether live files were replaced by that specific older generation (e.g. Xbox WGS restore).
+    pub fn verify_generation_integrity(
+        actual_dir: &Path,
+        expected_snapshot: &DirectoryObservationSnapshot,
+        expected_label: &str,
+        stale_reference: Option<(&DirectoryObservationSnapshot, &str)>,
+    ) -> Result<GenerationIntegrityStatus, CoreError> {
+        let actual_snapshot = Self::take_snapshot(actual_dir)?;
+
+        // First check: does actual match expected?
+        let mut differing_files = Vec::new();
+        let mut missing_files = Vec::new();
+
+        for (name, exp_file) in &expected_snapshot.files {
+            match actual_snapshot.files.get(name) {
+                Some(act_file) => {
+                    if exp_file.sha256 != act_file.sha256 {
+                        differing_files.push(name.clone());
+                    }
+                }
+                None => {
+                    missing_files.push(name.clone());
+                }
+            }
+        }
+
+        if differing_files.is_empty() && missing_files.is_empty() {
+            return Ok(GenerationIntegrityStatus::Verified);
+        }
+
+        // Second check: if differing, does it match the known stale reference?
+        if let Some((stale_snapshot, stale_label)) = stale_reference {
+            let mut matches_stale = true;
+            let mut matched_files = Vec::new();
+
+            for (name, stale_file) in &stale_snapshot.files {
+                match actual_snapshot.files.get(name) {
+                    Some(act_file) if act_file.sha256 == stale_file.sha256 => {
+                        matched_files.push(name.clone());
+                    }
+                    _ => {
+                        matches_stale = false;
+                        break;
+                    }
+                }
+            }
+
+            if matches_stale && !matched_files.is_empty() {
+                return Ok(GenerationIntegrityStatus::RollbackDetected {
+                    expected_generation: expected_label.to_string(),
+                    restored_stale_generation: stale_label.to_string(),
+                    matched_files,
+                });
+            }
+        }
+
+        Ok(GenerationIntegrityStatus::ExternalReplacementDetected {
+            expected_generation: expected_label.to_string(),
+            differing_files,
+            missing_files,
+        })
+    }
+
+    /// Asserts that no external save replacement or rollback has occurred.
+    /// Returns Err(CoreError::ExternalSaveReplacement) if a mismatch is detected.
+    pub fn assert_no_external_replacement(
+        actual_dir: &Path,
+        expected_snapshot: &DirectoryObservationSnapshot,
+        expected_label: &str,
+        stale_reference: Option<(&DirectoryObservationSnapshot, &str)>,
+    ) -> Result<(), CoreError> {
+        let status = Self::verify_generation_integrity(
+            actual_dir,
+            expected_snapshot,
+            expected_label,
+            stale_reference,
+        )?;
+
+        match status {
+            GenerationIntegrityStatus::Verified => Ok(()),
+            GenerationIntegrityStatus::RollbackDetected {
+                expected_generation,
+                restored_stale_generation,
+                matched_files,
+            } => Err(CoreError::ExternalSaveReplacement {
+                expected: expected_generation,
+                actual: restored_stale_generation,
+                detail: format!(
+                    "Platform/WGS rollback detected: files restored to older generation. Matched files: {:?}",
+                    matched_files
+                ),
+            }),
+            GenerationIntegrityStatus::ExternalReplacementDetected {
+                expected_generation,
+                differing_files,
+                missing_files,
+            } => Err(CoreError::ExternalSaveReplacement {
+                expected: expected_generation,
+                actual: "Unknown / External".to_string(),
+                detail: format!(
+                    "Files differed or missing from expected state. Differing: {:?}, Missing: {:?}",
+                    differing_files, missing_files
+                ),
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum GenerationIntegrityStatus {
+    /// Live files match the expected generation exactly
+    Verified,
+    /// Live files match a known older/stale generation (e.g. Xbox WGS restored State A over State B)
+    RollbackDetected {
+        expected_generation: String,
+        restored_stale_generation: String,
+        matched_files: Vec<String>,
+    },
+    /// Live files differ from expected and do not match any known generation
+    ExternalReplacementDetected {
+        expected_generation: String,
+        differing_files: Vec<String>,
+        missing_files: Vec<String>,
+    },
 }

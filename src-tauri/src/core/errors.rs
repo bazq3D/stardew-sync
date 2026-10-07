@@ -54,6 +54,13 @@ pub enum CoreError {
     #[error("Save directory not found at path: {0}")]
     SaveDirectoryNotFound(PathBuf),
 
+    #[error("External save replacement detected: expected generation '{expected}', but found '{actual}' ({detail})")]
+    ExternalSaveReplacement {
+        expected: String,
+        actual: String,
+        detail: String,
+    },
+
     #[error("JSON serialization error: {0}")]
     Json(#[from] serde_json::Error),
 }

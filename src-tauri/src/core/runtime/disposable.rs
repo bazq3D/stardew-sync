@@ -8,7 +8,7 @@ use crate::core::errors::CoreError;
 use crate::core::runtime::guard::ProductionGuard;
 use crate::core::save::fingerprint::compute_migration_stable_fingerprint;
 use crate::core::save::host_migrator::HostMigrator;
-use crate::core::save::parser::{get_child_text, set_child_text, ParsedSave};
+use crate::core::save::parser::{get_child_text, serialize_element, set_child_text, ParsedSave};
 use crate::core::save::validator::SaveValidator;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -244,19 +244,6 @@ fn find_farmer_by_id(root: &Element, id: i64) -> Result<Option<Element>, CoreErr
     }
 
     Ok(None)
-}
-
-fn serialize_element(elem: &Element) -> Result<String, CoreError> {
-    let mut buffer = Vec::new();
-    let config = xmltree::EmitterConfig::new()
-        .perform_indent(false)
-        .write_document_declaration(true);
-
-    elem.write_with_config(&mut buffer, config)
-        .map_err(|e| CoreError::XmlWrite(format!("Failed to serialize XML: {}", e)))?;
-
-    String::from_utf8(buffer)
-        .map_err(|e| CoreError::XmlWrite(format!("Serialized XML is invalid UTF-8: {}", e)))
 }
 
 fn sha256_hex(data: &str) -> String {

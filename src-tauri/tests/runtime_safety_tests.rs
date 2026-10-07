@@ -1,10 +1,13 @@
 mod test_fixtures;
 
 use stardew_sync_core::{
-    DisposableIdentity, DisposableSaveManager, MockProcessChecker, PostRuntimeAnalyzer,
-    ProcessMonitor, ProductionGuard, SaveValidator, PRODUCTION_FARM_FOLDER, PRODUCTION_GAME_ID,
+    CloudObserver, DisposableIdentity, DisposableSaveManager, GenerationIntegrityStatus,
+    MockProcessChecker, PostRuntimeAnalyzer, ProcessMonitor, ProductionGuard, SavePlatform,
+    SaveValidator, PRODUCTION_FARM_FOLDER, PRODUCTION_GAME_ID,
 };
+use std::fs;
 use std::path::Path;
+use tempfile::tempdir;
 use test_fixtures::{
     generate_test_save_1_6_xml, generate_test_save_game_info_xml, PLAYER_A_ID, PLAYER_B_ID,
 };
@@ -237,3 +240,192 @@ fn test_validator_rejects_duplicate_multiplayer_ids() {
     let res = SaveValidator::validate_multiplayer_for_migration(&parsed, 123456789);
     assert!(res.is_err());
 }
+
+#[test]
+fn test_disposable_save_serialization_preserves_xsi_and_bom() {
+    let save_xml = generate_test_save_1_6_xml();
+    let info_xml = generate_test_save_game_info_xml();
+    let identity = DisposableIdentity::default();
+
+    let (out_save, out_info) =
+        DisposableSaveManager::create_disposable_save(&save_xml, &info_xml, &identity).unwrap();
+
+    // 1. Must contain UTF-8 BOM
+    assert!(out_save.starts_with('\u{feff}'));
+    assert!(out_info.starts_with('\u{feff}'));
+
+    // 2. Must preserve root XML namespaces
+    assert!(out_save.contains(r#"xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance""#));
+    assert!(out_save.contains(r#"xmlns:xsd="http://www.w3.org/2001/XMLSchema""#));
+    assert!(out_info.contains(r#"xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance""#));
+    assert!(out_info.contains(r#"xmlns:xsd="http://www.w3.org/2001/XMLSchema""#));
+
+    // 3. Must have xsi:type and ZERO stripped/naked type=
+    assert!(out_save.contains(r#"xsi:type="Tool""#));
+    assert!(out_save.contains(r#"xsi:type="Farm""#));
+    assert_eq!(out_save.matches(" type=").count(), 0);
+    assert_eq!(out_save.matches(" nil=").count(), 0);
+    assert_eq!(out_info.matches(" type=").count(), 0);
+    assert_eq!(out_info.matches(" nil=").count(), 0);
+
+    // 4. Must update identity correctly
+    assert!(out_save.contains("<uniqueIDForThisGame>999450560</uniqueIDForThisGame>"));
+    assert!(out_save.contains("<farmName>TürkTest</farmName>"));
+    assert!(out_info.contains("<farmName>TürkTest</farmName>"));
+}
+
+#[test]
+fn test_generation_integrity_detects_exact_match() {
+    let temp = tempdir().unwrap();
+    let slot_dir = temp.path().join("TestSlot_123");
+    fs::create_dir_all(&slot_dir).unwrap();
+
+    fs::write(slot_dir.join("TestSlot_123"), "State B Game XML").unwrap();
+    fs::write(slot_dir.join("SaveGameInfo"), "State B Info XML").unwrap();
+
+    let snapshot_b = CloudObserver::take_snapshot(&slot_dir).unwrap();
+
+    let status = CloudObserver::verify_generation_integrity(
+        &slot_dir,
+        &snapshot_b,
+        "State B",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(status, GenerationIntegrityStatus::Verified);
+    assert!(CloudObserver::assert_no_external_replacement(
+        &slot_dir,
+        &snapshot_b,
+        "State B",
+        None
+    )
+    .is_ok());
+}
+
+#[test]
+fn test_generation_integrity_detects_wgs_rollback_to_stale_generation() {
+    let temp = tempdir().unwrap();
+    let dir_a = temp.path().join("StateA");
+    let dir_b = temp.path().join("StateB");
+    let live_dir = temp.path().join("LiveSlot");
+
+    fs::create_dir_all(&dir_a).unwrap();
+    fs::create_dir_all(&dir_b).unwrap();
+    fs::create_dir_all(&live_dir).unwrap();
+
+    // State A files (Host = Kubilay)
+    fs::write(dir_a.join("SaveData"), "<host>Kubilay</host>").unwrap();
+    fs::write(dir_a.join("SaveGameInfo"), "<info>Kubilay</info>").unwrap();
+    let snapshot_a = CloudObserver::take_snapshot(&dir_a).unwrap();
+
+    // State B files (Host = elbi)
+    fs::write(dir_b.join("SaveData"), "<host>elbi</host>").unwrap();
+    fs::write(dir_b.join("SaveGameInfo"), "<info>elbi</info>").unwrap();
+    let snapshot_b = CloudObserver::take_snapshot(&dir_b).unwrap();
+
+    // Simulate WGS rollback: live directory was overwritten with State A files!
+    fs::write(live_dir.join("SaveData"), "<host>Kubilay</host>").unwrap();
+    fs::write(live_dir.join("SaveGameInfo"), "<info>Kubilay</info>").unwrap();
+
+    let status = CloudObserver::verify_generation_integrity(
+        &live_dir,
+        &snapshot_b,
+        "State B (elbi host)",
+        Some((&snapshot_a, "State A (Kubilay host)")),
+    )
+    .unwrap();
+
+    match status {
+        GenerationIntegrityStatus::RollbackDetected {
+            expected_generation,
+            restored_stale_generation,
+            matched_files,
+        } => {
+            assert_eq!(expected_generation, "State B (elbi host)");
+            assert_eq!(restored_stale_generation, "State A (Kubilay host)");
+            assert_eq!(matched_files.len(), 2);
+        }
+        _ => panic!("Expected RollbackDetected status, got {:?}", status),
+    }
+
+    // assert_no_external_replacement must fail with CoreError::ExternalSaveReplacement
+    let err = CloudObserver::assert_no_external_replacement(
+        &live_dir,
+        &snapshot_b,
+        "State B (elbi host)",
+        Some((&snapshot_a, "State A (Kubilay host)")),
+    )
+    .unwrap_err();
+
+    let msg = format!("{}", err);
+    assert!(msg.contains("External save replacement detected"));
+    assert!(msg.contains("Platform/WGS rollback detected"));
+}
+
+#[test]
+fn test_generation_integrity_detects_external_file_replacement() {
+    let temp = tempdir().unwrap();
+    let dir_b = temp.path().join("StateB");
+    let live_dir = temp.path().join("LiveSlot");
+
+    fs::create_dir_all(&dir_b).unwrap();
+    fs::create_dir_all(&live_dir).unwrap();
+
+    fs::write(dir_b.join("SaveData"), "<host>elbi</host>").unwrap();
+    let snapshot_b = CloudObserver::take_snapshot(&dir_b).unwrap();
+
+    // Simulate third-party external corruption/modification
+    fs::write(live_dir.join("SaveData"), "<tampered>unknown</tampered>").unwrap();
+
+    let status = CloudObserver::verify_generation_integrity(
+        &live_dir,
+        &snapshot_b,
+        "State B",
+        None,
+    )
+    .unwrap();
+
+    match status {
+        GenerationIntegrityStatus::ExternalReplacementDetected {
+            expected_generation,
+            differing_files,
+            ..
+        } => {
+            assert_eq!(expected_generation, "State B");
+            assert_eq!(differing_files, vec!["SaveData"]);
+        }
+        _ => panic!("Expected ExternalReplacementDetected, got {:?}", status),
+    }
+
+    let err = CloudObserver::assert_no_external_replacement(
+        &live_dir,
+        &snapshot_b,
+        "State B",
+        None,
+    )
+    .unwrap_err();
+    assert!(format!("{}", err).contains("External save replacement detected"));
+}
+
+#[test]
+fn test_platform_capabilities_and_classification() {
+    let steam_caps = SavePlatform::SteamWin32.capabilities();
+    assert!(!steam_caps.has_platform_storage_manager);
+    assert!(steam_caps.supports_in_place_slot_replacement);
+    assert_eq!(steam_caps.persistence_model, "single_layer_authoritative");
+
+    let xbox_caps = SavePlatform::MicrosoftStoreXbox.capabilities();
+    assert!(xbox_caps.has_platform_storage_manager);
+    assert!(!xbox_caps.supports_in_place_slot_replacement);
+    assert!(!xbox_caps.supports_third_party_storage_api);
+    assert_eq!(xbox_caps.persistence_model, "two_layer_coordinated");
+
+    // Path classification
+    let detected_xbox = SavePlatform::classify_from_paths(true, true);
+    assert_eq!(detected_xbox, SavePlatform::MicrosoftStoreXbox);
+
+    let detected_steam = SavePlatform::classify_from_paths(true, false);
+    assert_eq!(detected_steam, SavePlatform::SteamWin32);
+}
+

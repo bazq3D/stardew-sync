@@ -60,21 +60,70 @@ impl ParsedSave {
         Ok(ParsedSave { root, metadata })
     }
 
-    /// Serializes the DOM back to an XML string.
+    /// Serializes the DOM back to an XML string with canonical schema attributes and UTF-8 BOM.
     pub fn to_xml_string(&self) -> Result<String, CoreError> {
-        let mut buffer = Vec::new();
-        let config = xmltree::EmitterConfig::new()
-            .perform_indent(false)
-            .write_document_declaration(true);
-
-        self.root
-            .write_with_config(&mut buffer, config)
-            .map_err(|e| CoreError::XmlWrite(format!("Failed to serialize XML: {}", e)))?;
-
-        String::from_utf8(buffer)
-            .map_err(|e| CoreError::XmlWrite(format!("Serialized XML is invalid UTF-8: {}", e)))
+        serialize_element(&self.root)
     }
 }
+
+/// Recursively restores XML Schema-Instance prefixes (`xsi:type` and `xsi:nil`)
+/// that may have had their prefix stripped by `xmltree` during parsing.
+pub fn restore_xml_schema_instance_attributes(elem: &mut Element) {
+    if let Some(val) = elem.attributes.remove("type") {
+        elem.attributes.insert("xsi:type".to_string(), val);
+    }
+    if let Some(val) = elem.attributes.remove("nil") {
+        elem.attributes.insert("xsi:nil".to_string(), val);
+    }
+    for child in &mut elem.children {
+        if let XMLNode::Element(child_elem) = child {
+            restore_xml_schema_instance_attributes(child_elem);
+        }
+    }
+}
+
+/// Canonical XML serializer for Stardew Valley save files and SaveGameInfo.
+/// Guarantees:
+/// 1. `xsi:type` and `xsi:nil` attributes are preserved for polymorphic .NET deserialization.
+/// 2. Standard `xmlns:xsi` and `xmlns:xsd` declarations are present on the root element.
+/// 3. Document declaration `<?xml version="1.0" encoding="utf-8"?>` is written.
+/// 4. No artificial whitespace indentation is introduced.
+/// 5. Output starts with UTF-8 BOM (`\u{feff}`) matching .NET/Stardew native saves.
+pub fn serialize_element(elem: &Element) -> Result<String, CoreError> {
+    let mut elem_clone = elem.clone();
+    restore_xml_schema_instance_attributes(&mut elem_clone);
+
+    // Ensure root has standard XML schema instance and schema definitions
+    if let Some(ref mut ns) = elem_clone.namespaces {
+        ns.put("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        ns.put("xsd", "http://www.w3.org/2001/XMLSchema");
+    } else {
+        let mut ns = xmltree::Namespace::empty();
+        ns.put("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        ns.put("xsd", "http://www.w3.org/2001/XMLSchema");
+        elem_clone.namespaces = Some(ns);
+    }
+
+    let mut buffer = Vec::new();
+    let config = xmltree::EmitterConfig::new()
+        .perform_indent(false)
+        .write_document_declaration(true);
+
+    elem_clone
+        .write_with_config(&mut buffer, config)
+        .map_err(|e| CoreError::XmlWrite(format!("Failed to serialize XML: {}", e)))?;
+
+    let raw_xml = String::from_utf8(buffer)
+        .map_err(|e| CoreError::XmlWrite(format!("Serialized XML is invalid UTF-8: {}", e)))?;
+
+    // Prepend UTF-8 BOM (\u{feff}) to exactly match .NET StreamWriter / Stardew save format
+    if !raw_xml.starts_with('\u{feff}') {
+        Ok(format!("\u{feff}{}", raw_xml))
+    } else {
+        Ok(raw_xml)
+    }
+}
+
 
 pub fn get_child_text(elem: &Element, child_name: &str) -> Option<String> {
     elem.get_child(child_name)

@@ -60,9 +60,15 @@ After user approves test installation of State A:
 
 ---
 
-## Test Execution 2: State B (elbi = Host)
+## Test Execution 2: State B (elbi = Host) — Platform Persistence Rule
 
-*(To be executed in a separate approved sub-stage after State A passes successfully.)*
+> [!CAUTION]
+> **CONFIRMED PLATFORM BEHAVIOR (Phase 4.6B):**
+> Microsoft Store / Xbox PC Stardew Valley restores a WGS-managed generation over `%APPDATA%\StardewValley\Saves` during startup if the save slot identity is already indexed in `containers.index`.
+> Because State A established container `TXrkTest_999450560` in WGS, in-place replacement of that exact slot is rejected by the Xbox runtime.
+> **Therefore, State B runtime validation MUST use Strategy F (Fresh Disposable Identity: `TXrkTestB_999450561`) to ensure clean load without WGS rollback.**
+
+*(To be executed under Strategy F after user approval.)*
 
 ### 1. Main Menu & Save Loading
 - [ ] Open **Load Game** menu.
