@@ -18,6 +18,8 @@ thiserror = "2.0"
 xmltree = "0.11"
 walkdir = "2.5"
 sysinfo = "0.33"
-
-[dev-dependencies]
 tempfile = "3.17"
+
+[[bin]]
+name = "dry_run"
+path = "src/bin/dry_run.rs"
