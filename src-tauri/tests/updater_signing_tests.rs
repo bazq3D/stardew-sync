@@ -35,7 +35,8 @@ fn test_cryptographic_signature_verification_of_release_artifact() {
     let manifest: serde_json::Value =
         serde_json::from_str(&manifest_content).expect("manifest must parse as JSON");
 
-    assert_eq!(manifest["version"], "0.1.1");
+    let version = env!("CARGO_PKG_VERSION");
+    assert_eq!(manifest["version"], version);
 
     let sig_b64 = manifest["platforms"]["windows-x86_64"]["signature"]
         .as_str()
@@ -49,24 +50,29 @@ fn test_cryptographic_signature_verification_of_release_artifact() {
 
     // 3. Verify trusted comment
     let trusted_comment = signature.trusted_comment();
+    let expected_version_str = format!("version:{}", version);
+    let expected_file_str = format!("file:Stardew Sync_{}_x64-setup.exe", version);
     assert!(
-        trusted_comment.contains("version:0.1.1"),
-        "Trusted comment must contain version:0.1.1: {}",
+        trusted_comment.contains(&expected_version_str),
+        "Trusted comment must contain {}: {}",
+        expected_version_str,
         trusted_comment
     );
     assert!(
-        trusted_comment.contains("file:Stardew Sync_0.1.1_x64-setup.exe"),
-        "Trusted comment must contain file:Stardew Sync_0.1.1_x64-setup.exe: {}",
+        trusted_comment.contains(&expected_file_str),
+        "Trusted comment must contain {}: {}",
+        expected_file_str,
         trusted_comment
     );
 
     // 4. Verify actual installer bytes
+    let installer_name = format!("Stardew Sync_{}_x64-setup.exe", version);
     let installer_path = workspace_root
         .join("target")
         .join("release")
         .join("bundle")
         .join("nsis")
-        .join("Stardew Sync_0.1.1_x64-setup.exe");
+        .join(&installer_name);
 
     assert!(
         installer_path.exists(),
@@ -119,8 +125,14 @@ fn test_manifest_url_encoding_matches_disk_asset() {
         .as_str()
         .expect("url must be a string");
 
+    let version = env!("CARGO_PKG_VERSION");
+    let expected_url_prefix = format!(
+        "https://github.com/bazq3D/stardew-sync/releases/download/v{}/Stardew%20Sync_{}_x64-setup.exe",
+        version, version
+    );
+
     assert!(
-        url.starts_with("https://github.com/bazq3D/stardew-sync/releases/download/v0.1.1/Stardew%20Sync_0.1.1_x64-setup.exe"),
+        url.starts_with(&expected_url_prefix),
         "URL must match canonical repository and correctly URL-encoded filename: {}",
         url
     );

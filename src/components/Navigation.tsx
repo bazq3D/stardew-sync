@@ -85,11 +85,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       <div className="sidebar-footer">
         <div className="system-status-indicator">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Users size={13} style={{ color: 'var(--accent-primary)' }} />
+            <Users size={13} style={{ color: 'var(--text-muted)' }} />
             <span style={{ fontWeight: 600 }}>Local Co-Op</span>
           </div>
-          <span className="badge badge-gold" style={{ fontSize: '9.5px', padding: '1px 5px' }}>
-            READY
+          <span style={{ color: 'var(--text-muted)', fontSize: '10.5px' }}>
+            Not Connected
           </span>
         </div>
 
