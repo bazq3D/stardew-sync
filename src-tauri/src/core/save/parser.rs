@@ -2,7 +2,7 @@ use crate::core::errors::CoreError;
 use std::io::Cursor;
 use xmltree::{Element, XMLNode};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PlayerSummary {
     pub name: String,
     pub unique_multiplayer_id: i64,
@@ -12,7 +12,7 @@ pub struct PlayerSummary {
     pub cabin_indoors_name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CabinSummary {
     pub building_type: String,
     pub tile_x: i32,
@@ -23,7 +23,7 @@ pub struct CabinSummary {
     pub farmhand_ref: Option<i64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SaveMetadata {
     pub farm_name: String,
     pub current_season: String,

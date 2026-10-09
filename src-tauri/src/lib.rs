@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod core;
 
 // Re-export common symbols for library consumers
@@ -30,3 +31,20 @@ pub use core::save::validator::SaveValidator;
 pub use core::transaction::recovery::{RecoveryManager, RecoveryManifest, TransactionState};
 pub use core::transaction::replace::SafeReplacer;
 pub use core::transaction::staging::StagingArea;
+
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::get_app_status,
+            commands::get_process_status,
+            commands::discover_farms,
+            commands::get_farm_metadata,
+            commands::list_snapshots,
+            commands::verify_snapshot_integrity,
+            commands::check_for_updates,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

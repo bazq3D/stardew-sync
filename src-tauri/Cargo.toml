@@ -3,12 +3,44 @@ name = "stardew-sync-core"
 version = "0.1.0"
 edition = "2021"
 authors = ["bazq"]
+default-run = "stardew-sync"
 
 [lib]
 name = "stardew_sync_core"
 path = "src/lib.rs"
 
+[[bin]]
+name = "stardew-sync"
+path = "src/main.rs"
+
+[[bin]]
+name = "dry_run"
+path = "src/bin/dry_run.rs"
+
+[[bin]]
+name = "prepare_disposable"
+path = "src/bin/prepare_disposable.rs"
+
+[[bin]]
+name = "install_test_state"
+path = "src/bin/install_test_state.rs"
+
+[[bin]]
+name = "analyze_runtime_test"
+path = "src/bin/analyze_runtime_test.rs"
+
+[[bin]]
+name = "prepare_fresh_state_b"
+path = "src/bin/prepare_fresh_state_b.rs"
+
+[[bin]]
+name = "install_fresh_state_b"
+path = "src/bin/install_fresh_state_b.rs"
+
 [dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 sha2 = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -20,6 +52,5 @@ walkdir = "2.5"
 sysinfo = "0.33"
 tempfile = "3.17"
 
-[[bin]]
-name = "dry_run"
-path = "src/bin/dry_run.rs"
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
