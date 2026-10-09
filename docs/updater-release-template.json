@@ -5,11 +5,11 @@
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUc3BEYXNlOTBzSnYzZHRZdHJhdTFnT0RMTmd2QlZFUjBwalF4dUs2ZExRdlkrbW4zRnNNd0s4eDZFdU1MTHVJcldjVmtKVU8xdXNXaS9HcHM1Vmh1SVB2Q3dKajVKY3dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNTY2ODgzCWZpbGU6U3RhcmRldyBTeW5jXzAuMS4xX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjEuMQozempvTS8xUU42dmk3c25YVjlXYndKM0tyOExxcGpuUGhqYzhkRmZuYlByNm1qT3JDU1RhUmZYMlFVRFdyTjVSTHZ3MG4yTStyTUhLaXJ4aU4wVEhCdz09Cg==",
-      "url": "https://github.com/bazq3D/stardew-sync-p2p/releases/download/v0.1.1/Stardew%20Sync_0.1.1_x64-setup.exe"
+      "url": "https://github.com/bazq3D/stardew-sync/releases/download/v0.1.1/Stardew%20Sync_0.1.1_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUc3BEYXNlOTBzSnYzZHRZdHJhdTFnT0RMTmd2QlZFUjBwalF4dUs2ZExRdlkrbW4zRnNNd0s4eDZFdU1MTHVJcldjVmtKVU8xdXNXaS9HcHM1Vmh1SVB2Q3dKajVKY3dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNTY2ODgzCWZpbGU6U3RhcmRldyBTeW5jXzAuMS4xX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjEuMQozempvTS8xUU42dmk3c25YVjlXYndKM0tyOExxcGpuUGhqYzhkRmZuYlByNm1qT3JDU1RhUmZYMlFVRFdyTjVSTHZ3MG4yTStyTUhLaXJ4aU4wVEhCdz09Cg==",
-      "url": "https://github.com/bazq3D/stardew-sync-p2p/releases/download/v0.1.1/Stardew%20Sync_0.1.1_x64-setup.exe"
+      "url": "https://github.com/bazq3D/stardew-sync/releases/download/v0.1.1/Stardew%20Sync_0.1.1_x64-setup.exe"
     }
   }
 }

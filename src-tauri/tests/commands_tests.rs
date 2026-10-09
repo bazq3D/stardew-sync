@@ -69,7 +69,7 @@ fn test_snapshot_integrity_rejects_path_traversal() {
 fn test_check_for_updates_endpoint() {
     let update_info = check_for_updates().expect("check_for_updates should succeed");
     assert_eq!(update_info.current_version, env!("CARGO_PKG_VERSION"));
-    assert!(update_info.endpoint.contains("github.com/bazq3D/stardew-sync-p2p"));
+    assert!(update_info.endpoint.contains("github.com/bazq3D/stardew-sync"));
     assert!(update_info.public_key_configured);
 }
 

@@ -33,8 +33,8 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
 
   const isGameRunning = processStatus?.is_stardew_running ?? false;
   const currentAppVersion = appStatus?.app_version || '0.1.1';
-  const repoUrl = 'https://github.com/bazq3D/stardew-sync-p2p';
-  const releaseEndpoint = 'https://github.com/bazq3D/stardew-sync-p2p/releases/latest/download/latest.json';
+  const repoUrl = 'https://github.com/bazq3D/stardew-sync';
+  const releaseEndpoint = 'https://github.com/bazq3D/stardew-sync/releases/latest/download/latest.json';
 
   const handleCheckUpdates = async () => {
     setChecking(true);

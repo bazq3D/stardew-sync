@@ -537,13 +537,13 @@ pub fn verify_snapshot_integrity(snapshot_folder: String) -> Result<SnapshotVeri
 pub fn check_for_updates() -> Result<UpdateCheckResult, String> {
     Ok(UpdateCheckResult {
         current_version: env!("CARGO_PKG_VERSION").to_string(),
-        endpoint: "https://github.com/bazq3D/stardew-sync-p2p/releases/latest/download/latest.json".to_string(),
+        endpoint: "https://github.com/bazq3D/stardew-sync/releases/latest/download/latest.json".to_string(),
         public_key_configured: true,
         update_available: false,
         latest_version: None,
         release_notes: None,
         status_message: format!(
-            "Running Stardew Sync v{}. Updater configured for GitHub Releases (bazq3D/stardew-sync-p2p).",
+            "Running Stardew Sync v{}. Updater configured for GitHub Releases (bazq3D/stardew-sync).",
             env!("CARGO_PKG_VERSION")
         ),
     })

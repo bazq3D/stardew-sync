@@ -83,6 +83,23 @@ fn test_cryptographic_signature_verification_of_release_artifact() {
         "Minisign cryptographic signature verification must succeed: {:?}",
         verify_result.err()
     );
+
+    // Also verify windows-x86_64-nsis signature matches and verifies identically
+    let nsis_sig_b64 = manifest["platforms"]["windows-x86_64-nsis"]["signature"]
+        .as_str()
+        .expect("windows-x86_64-nsis signature must be a string");
+    assert_eq!(sig_b64, nsis_sig_b64, "Both platform entries must share identical signature");
+
+    let nsis_sig_raw = BASE64.decode(nsis_sig_b64).expect("nsis signature must be valid base64");
+    let nsis_sig_str = String::from_utf8(nsis_sig_raw).expect("nsis signature must be valid UTF-8");
+    let nsis_signature =
+        Signature::decode(&nsis_sig_str).expect("nsis signature must decode successfully");
+    let nsis_verify = public_key.verify(&installer_bytes, &nsis_signature, true);
+    assert!(
+        nsis_verify.is_ok(),
+        "Minisign verification for windows-x86_64-nsis must succeed: {:?}",
+        nsis_verify.err()
+    );
 }
 
 #[test]
@@ -103,8 +120,8 @@ fn test_manifest_url_encoding_matches_disk_asset() {
         .expect("url must be a string");
 
     assert!(
-        url.contains("/releases/download/v0.1.1/Stardew%20Sync_0.1.1_x64-setup.exe"),
-        "URL must contain correctly URL-encoded filename: {}",
+        url.starts_with("https://github.com/bazq3D/stardew-sync/releases/download/v0.1.1/Stardew%20Sync_0.1.1_x64-setup.exe"),
+        "URL must match canonical repository and correctly URL-encoded filename: {}",
         url
     );
 

@@ -29,6 +29,8 @@ dist/
 .updater-key*
 updater.key
 *.pem
+*.pass
+*.secret
 
 # Environment variables
 .env

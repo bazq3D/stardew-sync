@@ -171,7 +171,7 @@ export async function checkAppUpdates(): Promise<UpdateCheckResult> {
   if (!isTauriEnvironment()) {
     return {
       current_version: "0.1.1",
-      endpoint: "https://github.com/bazq3D/stardew-sync-p2p/releases/latest/download/latest.json",
+      endpoint: "https://github.com/bazq3D/stardew-sync/releases/latest/download/latest.json",
       public_key_configured: true,
       update_available: false,
       latest_version: "0.1.1",
