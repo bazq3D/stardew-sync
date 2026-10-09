@@ -9,18 +9,18 @@
 
 ## 1. SOURCE SAFETY
 
-- **Explicit Supplied Path:** `C:\Users\bazq3\Desktop\stardew-sync-test\FARM_KLASORU\TXrk_450560341`
+- **Explicit Supplied Path:** `C:\Users\bazq3\Desktop\stardew-sync-test\production-snapshots\TXrk_450560341_2026-10-09_180041`
 - **Confirmed Outside Live Stardew Save Directory:** YES (Strictly validated outside `%APPDATA%\StardewValley\Saves`)
 - **Source Initial File Hashes:**
-  - `TXrk_450560341_old`: `90c51fb82a76bf168cd83b14a8ecb85eba3b1edc27b796ff579006934023204e`
-  - `TXrk_450560341`: `e89b4f18c7e587f416e870de0295327e87d7a5f32a8c7f37bb31195faba7f057`
-  - `SaveGameInfo_old`: `9d088905d0bc19ec47558014dc2a436086debdf648d6105fb1c94c74445e1ab3`
-  - `SaveGameInfo`: `b05e2f6fb5b2c485c12ca7b9bbdd81d9ca7fdad424dc2bfb622caaa095de4d2f`
+  - `SaveGameInfo`: `ecbda32ebaa515a1ff5be17690099c401cb70995f6583af1ac3b32a908852299`
+  - `SaveGameInfo_old`: `a7e5069e22e021e89fbe0fd229a989b6dea0ca1d89304b86dc75adb4e1eb50a2`
+  - `TXrk_450560341`: `c835f8572aee9adae36f3bddab512936c6605339d59096954d052d0d0557dec1`
+  - `TXrk_450560341_old`: `81b7a159b14765c3747789728a3b9fe69dfe5b14ad34ee07b3e1faf0c8693937`
 - **Source Final File Hashes:**
-  - `SaveGameInfo_old`: `9d088905d0bc19ec47558014dc2a436086debdf648d6105fb1c94c74445e1ab3`
-  - `TXrk_450560341`: `e89b4f18c7e587f416e870de0295327e87d7a5f32a8c7f37bb31195faba7f057`
-  - `TXrk_450560341_old`: `90c51fb82a76bf168cd83b14a8ecb85eba3b1edc27b796ff579006934023204e`
-  - `SaveGameInfo`: `b05e2f6fb5b2c485c12ca7b9bbdd81d9ca7fdad424dc2bfb622caaa095de4d2f`
+  - `SaveGameInfo_old`: `a7e5069e22e021e89fbe0fd229a989b6dea0ca1d89304b86dc75adb4e1eb50a2`
+  - `TXrk_450560341`: `c835f8572aee9adae36f3bddab512936c6605339d59096954d052d0d0557dec1`
+  - `SaveGameInfo`: `ecbda32ebaa515a1ff5be17690099c401cb70995f6583af1ac3b32a908852299`
+  - `TXrk_450560341_old`: `81b7a159b14765c3747789728a3b9fe69dfe5b14ad34ee07b3e1faf0c8693937`
 - **MANUALLY PROVIDED SOURCE COPY MODIFIED: NO**
 
 ---
