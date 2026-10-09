@@ -19,6 +19,21 @@ Thumbs.db
 [Dd]esktop.ini
 .DS_Store
 
+# Node & Frontend artifacts
+node_modules/
+dist/
+
+# Tauri updater private keys (NEVER commit signing keys)
+*.key
+*.key.pub
+.updater-key*
+updater.key
+*.pem
+
+# Environment variables
+.env
+.env.local
+
 # Temporary files
 *.tmp
 *.bak
