@@ -142,6 +142,23 @@ pub fn set_child_text(elem: &mut Element, child_name: &str, text: &str) {
     }
 }
 
+/// Canonical season name formatter supporting both integer IDs (0..3) and string representations.
+pub fn format_stardew_season(raw: &str) -> String {
+    match raw.trim().to_lowercase().as_str() {
+        "0" | "spring" => "Spring".to_string(),
+        "1" | "summer" => "Summer".to_string(),
+        "2" | "fall" | "autumn" => "Fall".to_string(),
+        "3" | "winter" => "Winter".to_string(),
+        other => {
+            let mut c = other.chars();
+            match c.next() {
+                None => "Spring".to_string(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        }
+    }
+}
+
 fn extract_metadata(root: &Element) -> Result<SaveMetadata, CoreError> {
     let player_elem = root.get_child("player").ok_or_else(|| {
         CoreError::Validation("Missing '<player>' element in SaveGame".to_string())
