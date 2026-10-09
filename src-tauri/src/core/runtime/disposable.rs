@@ -29,6 +29,14 @@ impl Default for DisposableIdentity {
 }
 
 impl DisposableIdentity {
+    pub fn fresh_state_b() -> Self {
+        Self {
+            farm_name: "TürkTestB".to_string(),
+            sanitized_folder_prefix: "TXrkTestB".to_string(),
+            game_id: 999450561,
+        }
+    }
+
     pub fn folder_name(&self) -> String {
         format!("{}_{}", self.sanitized_folder_prefix, self.game_id)
     }
