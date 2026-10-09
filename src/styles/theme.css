@@ -1,0 +1,104 @@
+:root {
+  /* Common typography */
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Radius tokens */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-full: 9999px;
+}
+
+/* Dark Theme (Default) */
+[data-theme='dark'] {
+  --bg-app: #0c120e;
+  --bg-sidebar: #0f1612;
+  --bg-card: #141f18;
+  --bg-card-hover: #19271e;
+  --bg-card-subtle: #111a14;
+  --bg-glass: rgba(20, 31, 24, 0.75);
+  --bg-input: #0f1712;
+
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-focus: #48bb78;
+
+  --text-primary: #f0f7f2;
+  --text-secondary: #9eb5a5;
+  --text-muted: #647b6c;
+  --text-inverse: #0c120e;
+
+  /* Brand Accents - Stardew Nature */
+  --accent-primary: #38a169;
+  --accent-primary-hover: #48bb78;
+  --accent-primary-glow: rgba(72, 187, 120, 0.25);
+  --accent-primary-subtle: rgba(56, 161, 105, 0.15);
+
+  --accent-gold: #ecc94b;
+  --accent-gold-subtle: rgba(236, 201, 75, 0.15);
+
+  --status-success: #48bb78;
+  --status-success-bg: rgba(72, 187, 120, 0.14);
+  --status-warning: #ed8936;
+  --status-warning-bg: rgba(237, 137, 54, 0.14);
+  --status-danger: #f56565;
+  --status-danger-bg: rgba(245, 101, 101, 0.14);
+  --status-info: #4299e1;
+  --status-info-bg: rgba(66, 153, 225, 0.14);
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px var(--accent-primary-glow);
+}
+
+/* Light Theme */
+[data-theme='light'] {
+  --bg-app: #f4f7f4;
+  --bg-sidebar: #ebf1ec;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9fbf9;
+  --bg-card-subtle: #f0f4f1;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-input: #ffffff;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.14);
+  --border-focus: #2f855a;
+
+  --text-primary: #1a251e;
+  --text-secondary: #4a5d51;
+  --text-muted: #7d9183;
+  --text-inverse: #ffffff;
+
+  /* Brand Accents - Stardew Nature */
+  --accent-primary: #2f855a;
+  --accent-primary-hover: #38a169;
+  --accent-primary-glow: rgba(47, 133, 90, 0.2);
+  --accent-primary-subtle: rgba(47, 133, 90, 0.1);
+
+  --accent-gold: #d69e2e;
+  --accent-gold-subtle: rgba(214, 158, 46, 0.12);
+
+  --status-success: #2f855a;
+  --status-success-bg: rgba(47, 133, 90, 0.1);
+  --status-warning: #dd6b20;
+  --status-warning-bg: rgba(221, 107, 32, 0.1);
+  --status-danger: #e53e3e;
+  --status-danger-bg: rgba(229, 62, 62, 0.1);
+  --status-info: #3182ce;
+  --status-info-bg: rgba(49, 130, 206, 0.1);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 15px var(--accent-primary-glow);
+}
