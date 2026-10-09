@@ -86,10 +86,10 @@ export const Navigation: React.FC<NavigationProps> = ({
         <div className="system-status-indicator">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Users size={13} style={{ color: 'var(--accent-primary)' }} />
-            <span style={{ fontWeight: 600 }}>Kubilay & elbi</span>
+            <span style={{ fontWeight: 600 }}>Local Co-Op</span>
           </div>
           <span className="badge badge-gold" style={{ fontSize: '9.5px', padding: '1px 5px' }}>
-            CO-OP
+            READY
           </span>
         </div>
 

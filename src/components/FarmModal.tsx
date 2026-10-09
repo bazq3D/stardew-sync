@@ -44,10 +44,18 @@ export const FarmModal: React.FC<FarmModalProps> = ({
             {metadata && (
               <span
                 className={`badge ${
-                  metadata.is_production ? 'badge-gold' : 'badge-info'
+                  metadata.is_legacy_production
+                    ? 'badge-gold'
+                    : metadata.is_test_fixture
+                    ? 'badge-info'
+                    : 'badge-success'
                 }`}
               >
-                {metadata.is_production ? 'PRODUCTION' : 'DISPOSABLE TEST'}
+                {metadata.is_legacy_production
+                  ? 'PRIMARY BASELINE'
+                  : metadata.is_test_fixture
+                  ? 'TEST FIXTURE'
+                  : 'PROTECTED SAVE'}
               </span>
             )}
           </div>

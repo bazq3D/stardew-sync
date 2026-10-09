@@ -11,6 +11,8 @@ import {
   Archive,
   ArrowRight,
   Lock,
+  Sprout,
+  Info,
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -30,7 +32,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onNavigate,
   onInspectFarm,
 }) => {
-  const prodFarm = farms.find((f) => f.is_production);
+  // Select the current farm: either legacy production if present, or the first discovered farm
+  const currentFarm = farms.find((f) => f.is_legacy_production) || farms[0] || null;
   const isRunning = processStatus?.is_stardew_running ?? false;
 
   return (
@@ -39,11 +42,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="banner banner-warning">
         <CloudOff size={20} />
         <div>
-          <strong>Phase 5.0 Desktop Foundation Notice:</strong> P2P Save
-          Synchronization & automated cloud replication are currently <strong>Offline</strong>.
-          This release establishes the local security, process monitoring, save
-          discovery, and verified snapshot foundation. Remote sync transport will be
-          implemented in Phase 6.0.
+          <strong>Phase 5.1 Public Foundation Notice:</strong> P2P Save
+          Synchronization & remote replication are currently <strong>Offline</strong>.
+          All discovered save data is monitored in default-deny read-only mode with
+          cryptographic SHA-256 integrity checks. Remote pairing and network transport
+          will be enabled in Phase 6.0.
         </div>
       </div>
 
@@ -105,8 +108,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {farms.length} {farms.length === 1 ? 'Farm' : 'Farms'}
           </div>
           <div className="metric-sub">
-            {farms.filter((f) => f.is_production).length} Production •{' '}
-            {farms.filter((f) => f.is_disposable).length} Disposable
+            {farms.length > 0 ? 'Discovered & Protected' : 'No saves detected'}
           </div>
         </div>
 
@@ -130,20 +132,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Main Production Farm Overview */}
+      {/* Main Farm Overview */}
       <div className="card">
         <div className="card-header">
           <div className="card-title">
-            <Users size={18} style={{ color: 'var(--accent-gold)' }} />
-            <span>Current Production Farm</span>
+            <Sprout size={18} style={{ color: 'var(--accent-primary)' }} />
+            <span>Current Farm Overview</span>
           </div>
-          <span className="badge badge-gold">
+          <span className="badge badge-success">
             <Lock size={11} />
-            PROTECTED
+            PROTECTED SAVE
           </span>
         </div>
 
-        {prodFarm ? (
+        {currentFarm ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div
               style={{
@@ -159,31 +161,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div>
                 <span className="metric-label">Farm Name</span>
                 <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {prodFarm.farm_name} Çiftliği
+                  {currentFarm.farm_name}
                 </span>
               </div>
 
               <div>
-                <span className="metric-label">Active Host</span>
+                <span className="metric-label">Farm Host</span>
                 <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--accent-gold)' }}>
-                  {prodFarm.host_name}
+                  {currentFarm.host_name}
                 </span>
               </div>
 
               <div>
-                <span className="metric-label">Farmhand</span>
-                <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--accent-primary)' }}>
-                  {prodFarm.farmhands.length > 0
-                    ? prodFarm.farmhands.join(', ')
-                    : 'elbi'}
+                <span className="metric-label">Farmhands</span>
+                <span style={{ fontSize: '15px', fontWeight: 500, color: 'var(--accent-primary)' }}>
+                  {currentFarm.farmhands.length > 0
+                    ? currentFarm.farmhands.join(', ')
+                    : 'None (Single-player)'}
                 </span>
               </div>
 
               <div>
-                <span className="metric-label">Calendar Date</span>
+                <span className="metric-label">In-Game Calendar</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 500 }}>
                   <Calendar size={13} style={{ color: 'var(--accent-primary)' }} />
-                  {prodFarm.date_summary}
+                  {currentFarm.date_summary}
                 </span>
               </div>
 
@@ -191,19 +193,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="metric-label">Current Funds</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 600, color: 'var(--accent-gold)' }}>
                   <Coins size={13} />
-                  {prodFarm.money.toLocaleString()}g
+                  {currentFarm.money.toLocaleString()}g
                 </span>
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Target Folder: <code className="code-box" style={{ padding: '2px 6px' }}>{prodFarm.folder_name}</code>
+                Target Folder: <code className="code-box" style={{ padding: '2px 6px' }}>{currentFarm.folder_name}</code>
               </span>
               <button
                 id="btn-inspect-production-farm"
                 className="btn btn-secondary btn-sm"
-                onClick={() => onInspectFarm(prodFarm.folder_name)}
+                onClick={() => onInspectFarm(currentFarm.folder_name)}
               >
                 <span>Inspect Save Metadata</span>
                 <ArrowRight size={13} />
@@ -211,13 +213,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
         ) : (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No production farm detected in saves directory.
+          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Info size={24} style={{ marginBottom: '8px', opacity: 0.7 }} />
+            <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              No Stardew Valley Saves Found
+            </p>
+            <p style={{ fontSize: '13px' }}>
+              Launch Stardew Valley and create or load a farm to begin using Stardew Sync.
+            </p>
           </div>
         )}
       </div>
 
-      {/* Safety & Co-Op Roles Summary */}
+      {/* Roles & Generic Safety Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
         {/* Card: Host / Farmhand Pairing */}
         <div className="card">
@@ -230,19 +238,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="kv-list">
             <div className="kv-item">
               <span className="kv-key">Primary Farm Host</span>
-              <span className="badge badge-gold">Kubilay (Windows PC)</span>
+              <span className="badge badge-gold">
+                {currentFarm ? currentFarm.host_name : 'No Host Detected'}
+              </span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">Connected Farmhand</span>
-              <span className="badge badge-info">elbi (Partner PC)</span>
+              <span className="kv-key">Connected Farmhands</span>
+              <span className="kv-val">
+                {currentFarm && currentFarm.farmhands.length > 0
+                  ? currentFarm.farmhands.join(', ')
+                  : 'None (Single-player)'}
+              </span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">Platform Persistence</span>
-              <span className="kv-val">Xbox PC / MS Store Connected Storage</span>
+              <span className="kv-key">Connected Devices</span>
+              <span className="kv-val">Local PC (Current Session)</span>
             </div>
             <div className="kv-item">
               <span className="kv-key">Host Migration Engine</span>
-              <span className="badge badge-success">Validated (Strategy F)</span>
+              <span className="badge badge-success">Ready (Default-Deny Model)</span>
             </div>
           </div>
         </div>
@@ -252,13 +266,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="card-header">
             <div className="card-title">
               <ShieldCheck size={16} style={{ color: 'var(--status-success)' }} />
-              <span>Production Safety Controls</span>
+              <span>Generic Safety Controls</span>
             </div>
           </div>
           <div className="kv-list">
             <div className="kv-item">
-              <span className="kv-key">Production Save Writes</span>
-              <span className="badge badge-danger">LOCKED (Read-Only)</span>
+              <span className="kv-key">All Saves Protection</span>
+              <span className="badge badge-danger">READ-ONLY (Default-Deny)</span>
             </div>
             <div className="kv-item">
               <span className="kv-key">Xbox WGS Direct Writes</span>

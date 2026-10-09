@@ -22,8 +22,9 @@ export interface FarmInfo {
   folder_name: string;
   farm_name: string;
   game_id: string;
-  is_production: bool;
-  is_disposable: bool;
+  is_legacy_production: boolean;
+  is_test_fixture: boolean;
+  is_protected: boolean;
   host_name: string;
   farmhands: string[];
   date_summary: string;
@@ -32,9 +33,9 @@ export interface FarmInfo {
   total_size_bytes: number;
   primary_save_exists: boolean;
   savegameinfo_exists: boolean;
+  is_production: boolean;
+  is_disposable: boolean;
 }
-
-type bool = boolean;
 
 export interface PlayerSummary {
   name: string;
@@ -59,8 +60,9 @@ export interface FarmDetailedMetadata {
   folder_name: string;
   farm_name: string;
   game_id: string;
-  is_production: boolean;
-  is_disposable: boolean;
+  is_legacy_production: boolean;
+  is_test_fixture: boolean;
+  is_protected: boolean;
   host: PlayerSummary | null;
   farmhands: PlayerSummary[];
   cabins: CabinSummary[];
@@ -69,6 +71,8 @@ export interface FarmDetailedMetadata {
   game_version: string;
   sha256_primary: string | null;
   sha256_savegameinfo: string | null;
+  is_production: boolean;
+  is_disposable: boolean;
 }
 
 export interface SnapshotInfo {

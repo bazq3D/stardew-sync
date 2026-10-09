@@ -7,6 +7,7 @@ import {
   Lock,
   ArrowRight,
   RefreshCw,
+  Info,
 } from 'lucide-react';
 
 interface FarmsPageProps {
@@ -22,8 +23,9 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
   onRefresh,
   onInspectFarm,
 }) => {
-  const prodFarms = farms.filter((f) => f.is_production);
-  const testFarms = farms.filter((f) => f.is_disposable || !f.is_production);
+  // Separate standard/active farms from registered test fixtures
+  const standardFarms = farms.filter((f) => !f.is_test_fixture);
+  const fixtureFarms = farms.filter((f) => f.is_test_fixture);
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -32,10 +34,9 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <ShieldCheck size={20} />
           <div>
-            <strong>Read-Only Farm Discovery:</strong> All saves detected in{' '}
-            <code>%APPDATA%\StardewValley\Saves</code> are shown below. Production saves
-            are strictly protected against modification. Destructive controls and
-            arbitrary file writes are completely disabled.
+            <strong>Dynamic Save Discovery:</strong> All save slots detected in your
+            Stardew Valley saves folder are listed below. All saves operate under a
+            default-deny read-only model. Save mutations are strictly prohibited.
           </div>
         </div>
         <button
@@ -49,45 +50,54 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
         </button>
       </div>
 
-      {/* Section 1: Production Farms */}
+      {/* Section 1: Standard / Active Player Farms */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-          <ShieldCheck size={18} style={{ color: 'var(--accent-gold)' }} />
+          <Sprout size={18} style={{ color: 'var(--accent-primary)' }} />
           <h2 style={{ fontSize: '16px', fontWeight: 700 }}>
-            Production Farm (Protected by ProductionGuard)
+            Discovered Farms ({standardFarms.length})
           </h2>
-          <span className="badge badge-gold">
+          <span className="badge badge-success">
             <Lock size={10} />
             READ-ONLY
           </span>
         </div>
 
-        {prodFarms.length === 0 ? (
-          <div className="card" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No production save folder detected.
+        {standardFarms.length === 0 ? (
+          <div className="card" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Info size={24} style={{ marginBottom: '8px', opacity: 0.7 }} />
+            <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              No Farms Discovered
+            </p>
+            <p style={{ fontSize: '13px' }}>
+              No standard save folders found. Start or load a farm in Stardew Valley to see it here.
+            </p>
           </div>
         ) : (
           <div className="card-grid">
-            {prodFarms.map((farm) => (
+            {standardFarms.map((farm) => (
               <div
                 key={farm.folder_name}
                 id={`farm-card-${farm.folder_name}`}
                 className="card card-clickable"
                 onClick={() => onInspectFarm(farm.folder_name)}
-                style={{ borderColor: 'rgba(236, 201, 75, 0.3)' }}
               >
                 <div className="card-header">
                   <div className="card-title">
-                    <Sprout size={16} style={{ color: 'var(--accent-gold)' }} />
-                    <span>{farm.farm_name} Çiftliği</span>
+                    <Sprout size={16} style={{ color: 'var(--accent-primary)' }} />
+                    <span>{farm.farm_name}</span>
                   </div>
-                  <span className="badge badge-gold">PRODUCTION</span>
+                  {farm.is_legacy_production ? (
+                    <span className="badge badge-gold">PRIMARY BASELINE</span>
+                  ) : (
+                    <span className="badge badge-success">PROTECTED</span>
+                  )}
                 </div>
 
                 <div className="card-body">
                   <div className="kv-list">
                     <div className="kv-item">
-                      <span className="kv-key">Host Farmer</span>
+                      <span className="kv-key">Farm Host</span>
                       <strong className="kv-val" style={{ color: 'var(--accent-gold)' }}>
                         {farm.host_name}
                       </strong>
@@ -97,11 +107,11 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
                       <span className="kv-val">
                         {farm.farmhands.length > 0
                           ? farm.farmhands.join(', ')
-                          : 'elbi'}
+                          : 'None (Single-player)'}
                       </span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">In-Game Date</span>
+                      <span className="kv-key">In-Game Calendar</span>
                       <span className="kv-val">{farm.date_summary}</span>
                     </div>
                     <div className="kv-item">
@@ -111,7 +121,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
                       </span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Save Directory</span>
+                      <span className="kv-key">Folder Name</span>
                       <span className="code-box" style={{ padding: '1px 6px' }}>{farm.folder_name}</span>
                     </div>
                   </div>
@@ -132,23 +142,19 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
         )}
       </div>
 
-      {/* Section 2: Disposable Test Saves */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-          <FlaskConical size={18} style={{ color: 'var(--status-info)' }} />
-          <h2 style={{ fontSize: '16px', fontWeight: 700 }}>
-            Disposable Test Saves (Isolated R&D Slots)
-          </h2>
-          <span className="badge badge-info">DISPOSABLE</span>
-        </div>
-
-        {testFarms.length === 0 ? (
-          <div className="card" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No disposable test saves detected.
+      {/* Section 2: Registered Test Fixtures (if any exist) */}
+      {fixtureFarms.length > 0 && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+            <FlaskConical size={18} style={{ color: 'var(--status-info)' }} />
+            <h2 style={{ fontSize: '16px', fontWeight: 700 }}>
+              Registered Test Fixtures ({fixtureFarms.length})
+            </h2>
+            <span className="badge badge-info">ISOLATED FIXTURE</span>
           </div>
-        ) : (
+
           <div className="card-grid">
-            {testFarms.map((farm) => (
+            {fixtureFarms.map((farm) => (
               <div
                 key={farm.folder_name}
                 id={`farm-card-${farm.folder_name}`}
@@ -158,9 +164,9 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
                 <div className="card-header">
                   <div className="card-title">
                     <FlaskConical size={16} style={{ color: 'var(--status-info)' }} />
-                    <span>{farm.farm_name} Çiftliği</span>
+                    <span>{farm.farm_name}</span>
                   </div>
-                  <span className="badge badge-info">TEST SAVE</span>
+                  <span className="badge badge-info">TEST FIXTURE</span>
                 </div>
 
                 <div className="card-body">
@@ -178,7 +184,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
                       </span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">In-Game Date</span>
+                      <span className="kv-key">In-Game Calendar</span>
                       <span className="kv-val">{farm.date_summary}</span>
                     </div>
                     <div className="kv-item">
@@ -204,8 +210,8 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
