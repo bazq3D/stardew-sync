@@ -17,7 +17,7 @@ export const isTauriEnvironment = (): boolean => {
 export async function fetchAppStatus(): Promise<AppStatus> {
   if (!isTauriEnvironment()) {
     return {
-      app_version: "0.1.0",
+      app_version: "0.1.1",
       author: "bazq",
       platform: "windows",
       arch: "x86_64",
@@ -170,13 +170,13 @@ export async function verifySnapshot(snapshotFolder: string): Promise<SnapshotVe
 export async function checkAppUpdates(): Promise<UpdateCheckResult> {
   if (!isTauriEnvironment()) {
     return {
-      current_version: "0.1.0",
-      endpoint: "https://github.com/bazq3/stardew-sync-p2p/releases/latest/download/latest.json",
+      current_version: "0.1.1",
+      endpoint: "https://github.com/bazq3D/stardew-sync-p2p/releases/latest/download/latest.json",
       public_key_configured: true,
       update_available: false,
-      latest_version: "0.1.0",
-      release_notes: "Phase 5.1 Public-Ready Desktop Foundation release with dynamic metadata discovery.",
-      status_message: "You are running the latest version of Stardew Sync (v0.1.0).",
+      latest_version: "0.1.1",
+      release_notes: "Phase 5.2 Release-Ready Desktop Foundation with secure signed auto-updater.",
+      status_message: "Running Stardew Sync v0.1.1. Native updater configured for GitHub Releases.",
     };
   }
   return await invoke<UpdateCheckResult>("check_for_updates");

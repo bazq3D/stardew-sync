@@ -59,7 +59,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span>App Version</span>
           </div>
           <div className="metric-value">
-            v{appStatus?.app_version || '0.1.0'}
+            v{appStatus?.app_version || '0.1.1'}
           </div>
           <div className="metric-sub">
             Built by bazq • Tauri 2 Native

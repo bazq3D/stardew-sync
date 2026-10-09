@@ -139,7 +139,7 @@ export const App: React.FC = () => {
       <Navigation
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        appVersion={appStatus?.app_version || '0.1.0'}
+        appVersion={appStatus?.app_version || '0.1.1'}
       />
 
       {/* Main Content Area */}

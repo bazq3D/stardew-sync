@@ -1,11 +1,11 @@
 {
-  "version": "0.1.0",
-  "notes": "Stardew Sync Desktop Application Foundation Release (Phase 5.0). Featuring safe read-only save discovery, real-time process monitoring, immutable snapshot verification, and Stardew-inspired UI.",
-  "pub_date": "2026-10-09T18:48:00Z",
+  "version": "0.1.1",
+  "notes": "Stardew Sync v0.1.1 Public-Ready Release. Featuring dynamic save discovery for any player/farm, accurate in-game calendar date parsing, generic read-only safety model, password-protected cryptographic updater signing, and native Tauri 2 updater integration.",
+  "pub_date": "2026-10-09T20:28:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUjlxTi8rMDhRMlRDVGVvanVkNnpxdk1xWTExUi9OaDV0WTZGcU9vV1FnbFhtU0ZxNHlmMHVVRDk4T2xsR2M4bWdYSmt6S2YxekJqRVczNXFpKzFtNkdaaW8wUVlTTlFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNTYwOTAyCWZpbGU6U3RhcmRldyBTeW5jXzAuMS4wX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjEuMApCWTB6bzRqZFFEdGJmTzJ2c3RXbGhXZFg4aDJNcnNwYlZWSTl6TlVaS2s4SWxkVlFuM05hcEM2NWl6NjJ4cVZiS29XNi9BK0RoT2dhdUxMZTNGeGZDQT09Cg==",
-      "url": "https://github.com/bazq3/stardew-sync-p2p/releases/download/v0.1.0/Stardew.Sync_0.1.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUc3BEYXNlOTBzSnYzZHRZdHJhdTFnT0RMTmd2QlZFUjBwalF4dUs2ZExRdlkrbW4zRnNNd0s4eDZFdU1MTHVJcldjVmtKVU8xdXNXaS9HcHM1Vmh1SVB2Q3dKajVKY3dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxNTY2ODgzCWZpbGU6U3RhcmRldyBTeW5jXzAuMS4xX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjEuMQozempvTS8xUU42dmk3c25YVjlXYndKM0tyOExxcGpuUGhqYzhkRmZuYlByNm1qT3JDU1RhUmZYMlFVRFdyTjVSTHZ3MG4yTStyTUhLaXJ4aU4wVEhCdz09Cg==",
+      "url": "https://github.com/bazq3D/stardew-sync-p2p/releases/download/v0.1.1/Stardew.Sync_0.1.1_x64-setup.exe"
     }
   }
 }

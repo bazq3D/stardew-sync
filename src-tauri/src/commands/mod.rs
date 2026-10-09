@@ -209,7 +209,7 @@ pub fn get_app_status() -> Result<AppStatus, String> {
     let wgs_str = wgs_dir.map(|p| p.to_string_lossy().to_string());
 
     Ok(AppStatus {
-        app_version: "0.1.0".to_string(),
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
         author: "bazq".to_string(),
         platform: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
@@ -536,12 +536,15 @@ pub fn verify_snapshot_integrity(snapshot_folder: String) -> Result<SnapshotVeri
 #[tauri::command]
 pub fn check_for_updates() -> Result<UpdateCheckResult, String> {
     Ok(UpdateCheckResult {
-        current_version: "0.1.0".to_string(),
-        endpoint: "https://github.com/bazq3/stardew-sync-p2p/releases/latest/download/latest.json".to_string(),
+        current_version: env!("CARGO_PKG_VERSION").to_string(),
+        endpoint: "https://github.com/bazq3D/stardew-sync-p2p/releases/latest/download/latest.json".to_string(),
         public_key_configured: true,
         update_available: false,
-        latest_version: Some("0.1.0".to_string()),
-        release_notes: Some("Phase 5.1 Public-Ready Desktop Foundation release with dynamic metadata discovery.".to_string()),
-        status_message: "You are running the latest version of Stardew Sync (v0.1.0).".to_string(),
+        latest_version: None,
+        release_notes: None,
+        status_message: format!(
+            "Running Stardew Sync v{}. Updater configured for GitHub Releases (bazq3D/stardew-sync-p2p).",
+            env!("CARGO_PKG_VERSION")
+        ),
     })
 }

@@ -4,7 +4,7 @@ use xmltree::Element;
 #[test]
 fn test_get_app_status_structure() {
     let status = get_app_status().expect("get_app_status should succeed");
-    assert_eq!(status.app_version, "0.1.0");
+    assert_eq!(status.app_version, env!("CARGO_PKG_VERSION"));
     assert_eq!(status.author, "bazq");
     assert!(!status.platform.is_empty());
     assert!(!status.arch.is_empty());
@@ -68,8 +68,8 @@ fn test_snapshot_integrity_rejects_path_traversal() {
 #[test]
 fn test_check_for_updates_endpoint() {
     let update_info = check_for_updates().expect("check_for_updates should succeed");
-    assert_eq!(update_info.current_version, "0.1.0");
-    assert!(update_info.endpoint.contains("github.com/bazq3/stardew-sync-p2p"));
+    assert_eq!(update_info.current_version, env!("CARGO_PKG_VERSION"));
+    assert!(update_info.endpoint.contains("github.com/bazq3D/stardew-sync-p2p"));
     assert!(update_info.public_key_configured);
 }
 
