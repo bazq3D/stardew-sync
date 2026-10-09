@@ -54,3 +54,7 @@ tempfile = "3.17"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+minisign-verify = "0.2"
+base64 = "0.22"

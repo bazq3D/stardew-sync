@@ -3230,7 +3230,9 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 name = "stardew-sync-core"
 version = "0.1.1"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
+ "minisign-verify",
  "serde",
  "serde_json",
  "sha2",

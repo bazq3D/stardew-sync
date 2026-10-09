@@ -314,11 +314,17 @@ fn test_stardew_1_6_root_farmhands_migration_and_roundtrip() {
 
 #[test]
 fn test_restore_xsi_attributes_counts() {
-    let offline_save_path = "C:\\Users\\bazq3\\Desktop\\stardew-sync-test\\FARM_KLASORU\\TXrk_450560341\\TXrk_450560341";
-    if !std::path::Path::new(offline_save_path).exists() {
+    let userprofile = std::env::var("USERPROFILE").unwrap_or_default();
+    let offline_save_path = std::path::PathBuf::from(&userprofile)
+        .join("Desktop")
+        .join("stardew-sync-test")
+        .join("FARM_KLASORU")
+        .join("TXrk_450560341")
+        .join("TXrk_450560341");
+    if !offline_save_path.exists() {
         return;
     }
-    let content = std::fs::read_to_string(offline_save_path).unwrap();
+    let content = std::fs::read_to_string(&offline_save_path).unwrap();
     let elem = xmltree::Element::parse(std::io::Cursor::new(content.as_bytes())).unwrap();
 
     let out = stardew_sync_core::serialize_element(&elem).unwrap();
@@ -337,8 +343,16 @@ fn test_restore_xsi_attributes_counts() {
     assert_eq!(naked_nil_count, 0);
 
     // Also test SaveGameInfo
-    let offline_info_path = "C:\\Users\\bazq3\\Desktop\\stardew-sync-test\\FARM_KLASORU\\TXrk_450560341\\SaveGameInfo";
-    let info_content = std::fs::read_to_string(offline_info_path).unwrap();
+    let offline_info_path = std::path::PathBuf::from(&userprofile)
+        .join("Desktop")
+        .join("stardew-sync-test")
+        .join("FARM_KLASORU")
+        .join("TXrk_450560341")
+        .join("SaveGameInfo");
+    if !offline_info_path.exists() {
+        return;
+    }
+    let info_content = std::fs::read_to_string(&offline_info_path).unwrap();
     let info_elem = xmltree::Element::parse(std::io::Cursor::new(info_content.as_bytes())).unwrap();
     let info_out = stardew_sync_core::serialize_element(&info_elem).unwrap();
 

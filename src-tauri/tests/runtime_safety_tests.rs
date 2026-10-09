@@ -15,7 +15,7 @@ use test_fixtures::{
 #[test]
 fn test_production_farm_folder_identity_strictly_rejected() {
     // Exact match
-    let exact = Path::new("C:\\Users\\bazq3\\AppData\\Roaming\\StardewValley\\Saves")
+    let exact = Path::new("C:\\Users\\TestUser\\AppData\\Roaming\\StardewValley\\Saves")
         .join(PRODUCTION_FARM_FOLDER);
     assert!(ProductionGuard::validate_target_path(&exact).is_err());
 
