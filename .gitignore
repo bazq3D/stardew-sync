@@ -10,7 +10,7 @@ working/
 scratch/
 test-copies/
 FARM_KLASORU/
-save/
+/save/
 disposable-runtime-states/
 *.save
 
