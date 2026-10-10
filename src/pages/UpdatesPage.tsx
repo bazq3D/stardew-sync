@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppStatus, ProcessStatus, UpdateCheckResult } from '../types';
-import { isTauriEnvironment } from '../api/tauri';
+import {
+  isTauriEnvironment,
+  fetchUpdateEligibility,
+  reserveUpdateSlot,
+  releaseUpdateSlot,
+} from '../api/tauri';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import {
   Sparkles,
@@ -13,16 +18,20 @@ import {
   Download,
   Info,
 } from 'lucide-react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface UpdatesPageProps {
   appStatus: AppStatus | null;
   processStatus: ProcessStatus | null;
+  isSaveOperationActive?: boolean;
 }
 
 export const UpdatesPage: React.FC<UpdatesPageProps> = ({
   appStatus,
   processStatus,
+  isSaveOperationActive = false,
 }) => {
+  const { t } = useTranslation();
   const [checking, setChecking] = useState(false);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
@@ -31,8 +40,30 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const activeReservationTokenRef = useRef<string | null>(null);
+  const isUpdateInProgressRef = useRef(false);
+
+  // Unmount cleanup: if the component unmounts while holding an active reservation token,
+  // safely release it ONLY IF no update is actively in progress. If an update is in progress,
+  // preserve the reservation lock across view transitions to maintain fail-closed save safety.
+  useEffect(() => {
+    return () => {
+      if (isUpdateInProgressRef.current) {
+        console.warn('UpdatesPage unmounted during active update installation; preserving reservation lock.');
+        return;
+      }
+      const token = activeReservationTokenRef.current;
+      if (token) {
+        releaseUpdateSlot(token).catch((err) => {
+          console.warn('Cleanup: failed to release update reservation on unmount:', err);
+        });
+        activeReservationTokenRef.current = null;
+      }
+    };
+  }, []);
+
   const isGameRunning = processStatus?.is_stardew_running ?? false;
-  const currentAppVersion = appStatus?.app_version || '0.1.1';
+  const currentAppVersion = appStatus?.app_version || '0.1.3';
   const repoUrl = 'https://github.com/bazq3D/stardew-sync';
   const releaseEndpoint = 'https://github.com/bazq3D/stardew-sync/releases/latest/download/latest.json';
 
@@ -65,7 +96,7 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
             update_available: false,
             latest_version: null,
             release_notes: null,
-            status_message: `You are running the latest version of Stardew Sync (v${currentAppVersion}).`,
+            status_message: t('updates.upToDateMsg', { version: currentAppVersion }),
           });
         }
       } else {
@@ -76,7 +107,7 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
           public_key_configured: true,
           update_available: false,
           latest_version: currentAppVersion,
-          release_notes: 'Phase 5.2 Release-Ready Desktop Foundation with secure signed auto-updater.',
+          release_notes: 'Desktop Foundation with secure signed auto-updater.',
           status_message: `Browser preview mode: running mock Stardew Sync v${currentAppVersion}.`,
         });
       }
@@ -95,11 +126,33 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
   };
 
   const handleDownloadAndInstall = async () => {
-    if (!pendingUpdate || isGameRunning) return;
+    if (!pendingUpdate || isSaveOperationActive) return;
+
+    // 1. Authoritative backend eligibility check
+    try {
+      const eligibility = await fetchUpdateEligibility(isSaveOperationActive);
+      if (!eligibility.can_update) {
+        setErrorMsg(eligibility.reason);
+        return;
+      }
+    } catch (err: any) {
+      console.warn('Backend update eligibility check warning:', err);
+    }
+
+    // 2. Authoritative backend reservation with unique ownership token to eliminate TOCTOU race condition
+    let acquiredToken: string | null = null;
+    try {
+      acquiredToken = await reserveUpdateSlot();
+      activeReservationTokenRef.current = acquiredToken;
+      isUpdateInProgressRef.current = true;
+    } catch (err: any) {
+      setErrorMsg(`Update paused: ${err?.message || String(err)}`);
+      return;
+    }
 
     setDownloading(true);
     setErrorMsg(null);
-    setStatusFeedback('Downloading signed update package...');
+    setStatusFeedback(t('updates.downloading'));
 
     try {
       let downloaded = 0;
@@ -114,25 +167,46 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
             setDownloadProgress(Math.round((downloaded / total) * 100));
           }
         } else if (event.event === 'Finished') {
-          setStatusFeedback('Cryptographic signature verified. Launching installer...');
+          setStatusFeedback(t('updates.verifiedLaunching'));
         }
       });
     } catch (err: any) {
       setErrorMsg(`Update installation failed: ${err?.message || String(err)}`);
       setDownloading(false);
+    } finally {
+      isUpdateInProgressRef.current = false;
+      if (acquiredToken) {
+        try {
+          await releaseUpdateSlot(acquiredToken);
+        } catch (releaseErr) {
+          console.warn('Failed to release update reservation slot:', releaseErr);
+        } finally {
+          if (activeReservationTokenRef.current === acquiredToken) {
+            activeReservationTokenRef.current = null;
+          }
+        }
+      }
     }
   };
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Game Running Safety Banner */}
-      {isGameRunning && (
+      {/* Active Save Operation Pause Notice */}
+      {isSaveOperationActive && (
         <div className="banner banner-warning">
           <Lock size={20} />
           <div>
-            <strong>Update Safety Lock Engaged:</strong> Stardew Valley is currently
-            running. To prevent any chance of binary corruption or save lock conflicts,
-            updates cannot be applied until the game process has cleanly exited.
+            <strong>{t('updates.saveOpNoticeTitle')}</strong> {t('updates.saveOpNoticeText')}
+          </div>
+        </div>
+      )}
+
+      {/* Game Running Informational Notice (Decoupled from App Updates) */}
+      {isGameRunning && (
+        <div className="banner banner-info">
+          <Info size={20} />
+          <div>
+            <strong>{t('updates.gameRunningNoticeTitle')}</strong> {t('updates.gameRunningNoticeText')}
           </div>
         </div>
       )}
@@ -142,7 +216,7 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
         <div className="card-header">
           <div className="card-title">
             <Sparkles size={18} style={{ color: 'var(--accent-primary)' }} />
-            <span>Automatic Updates (Tauri 2 Native Updater)</span>
+            <span>{t('updates.title')}</span>
           </div>
 
           <button
@@ -152,35 +226,35 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
             disabled={checking || downloading}
           >
             <RefreshCw size={14} className={checking ? 'animate-spin' : ''} />
-            <span>{checking ? 'Checking Release...' : 'Check for Updates'}</span>
+            <span>{checking ? t('updates.btnChecking') : t('updates.btnCheck')}</span>
           </button>
         </div>
 
         <div className="kv-list">
           <div className="kv-item">
-            <span className="kv-key">Installed Application Version</span>
+            <span className="kv-key">{t('updates.installedVersion')}</span>
             <span className="kv-val" style={{ fontWeight: 700 }}>
               v{currentAppVersion}
             </span>
           </div>
 
           <div className="kv-item">
-            <span className="kv-key">Distribution Target</span>
+            <span className="kv-key">{t('updates.distributionTarget')}</span>
             <span className="code-box" style={{ padding: '2px 8px' }}>
               GitHub Releases ({repoUrl})
             </span>
           </div>
 
           <div className="kv-item">
-            <span className="kv-key">Cryptographic Signature Verification</span>
+            <span className="kv-key">{t('updates.signatureVerification')}</span>
             <span className="badge badge-success">
               <Key size={11} />
-              MINISIGN ED25519 (PASSWORD-PROTECTED)
+              {t('updates.signatureMethod')}
             </span>
           </div>
 
           <div className="kv-item">
-            <span className="kv-key">Release Endpoint</span>
+            <span className="kv-key">{t('updates.releaseEndpoint')}</span>
             <span className="code-box" style={{ padding: '2px 8px' }}>
               {releaseEndpoint}
             </span>
@@ -204,9 +278,9 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
           <div className="card-header">
             <div className="card-title">
               <CheckCircle2 size={18} style={{ color: 'var(--status-success)' }} />
-              <span>Version Status</span>
+              <span>{t('common.status')}</span>
             </div>
-            <span className="badge badge-success">UP TO DATE</span>
+            <span className="badge badge-success">{t('updates.upToDateBadge')}</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -223,16 +297,16 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
           <div className="card-header">
             <div className="card-title">
               <Sparkles size={18} style={{ color: 'var(--accent-primary)' }} />
-              <span>New Release Available: v{pendingUpdate.version}</span>
+              <span>{t('updates.updateAvailable', { version: pendingUpdate.version })}</span>
             </div>
             <button
               id="btn-install-update"
               className="btn btn-primary"
               onClick={handleDownloadAndInstall}
-              disabled={downloading || isGameRunning}
+              disabled={downloading || Boolean(isSaveOperationActive)}
             >
               <Download size={14} className={downloading ? 'animate-bounce' : ''} />
-              <span>{downloading ? 'Installing...' : 'Download & Install Update'}</span>
+              <span>{downloading ? t('updates.btnInstalling') : t('updates.btnInstall')}</span>
             </button>
           </div>
 
@@ -256,6 +330,7 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
               </div>
             )}
 
+            {/* Release notes kept in original language as required */}
             {pendingUpdate.body && (
               <div
                 style={{
@@ -275,7 +350,7 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
                     marginBottom: '6px',
                   }}
                 >
-                  Release Notes
+                  {t('updates.releaseNotes')}
                 </span>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
                   {pendingUpdate.body}
@@ -291,19 +366,19 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
         <div className="card-header">
           <div className="card-title">
             <Info size={16} style={{ color: 'var(--accent-secondary)' }} />
-            <span>Upgrade Compatibility & Legacy Transition Notice</span>
+            <span>{t('updates.compatNoticeTitle')}</span>
           </div>
         </div>
 
         <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
           <p style={{ marginBottom: '8px' }}>
-            <strong>Upgrading from Installed v0.1.0 to v0.1.1:</strong> The initial development build (v0.1.0) trusted an unencrypted development key and a preliminary repository URL. Because that preliminary endpoint does not host releases, in-app updating from v0.1.0 to v0.1.1 is intentionally disabled.
+            {t('updates.compatNoticeText1')}
           </p>
           <p style={{ marginBottom: '8px' }}>
-            To upgrade to v0.1.1, run the signed Windows NSIS setup package (<code>Stardew Sync_0.1.1_x64-setup.exe</code>) manually once. Your settings and saves will remain completely intact.
+            {t('updates.compatNoticeText2')}
           </p>
           <p>
-            <strong>Subsequent Updates (v0.1.1+):</strong> Future updates will be retrieved, cryptographically verified with password-protected Minisign keys, and installed automatically in-app via GitHub Releases.
+            {t('updates.compatNoticeText3')}
           </p>
         </div>
       </div>
@@ -313,19 +388,22 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
         <div className="card-header">
           <div className="card-title">
             <ShieldCheck size={16} />
-            <span>Update Integrity & Security Architecture</span>
+            <span>{t('updates.securityPolicyTitle')}</span>
           </div>
         </div>
 
         <ul style={{ paddingLeft: '20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
           <li>
-            <strong>Signed Artifacts Only:</strong> Unsigned binaries are strictly rejected by the Tauri 2 core updater engine.
+            {t('updates.securityPolicy1')}
           </li>
           <li>
-            <strong>Secret Key Security:</strong> The private signing key is stored outside the repository with restricted user ACLs and protected by a strong passphrase.
+            {t('updates.securityPolicy2')}
           </li>
           <li>
-            <strong>Save Safety Guard:</strong> Auto-updates require explicit confirmation and cannot execute during an active save or gameplay session.
+            {t('updates.securityPolicy3')}
+          </li>
+          <li>
+            {t('updates.securityPolicy4')}
           </li>
         </ul>
       </div>

@@ -9,6 +9,7 @@ import {
   Users,
   WifiOff,
 } from 'lucide-react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface NavigationProps {
   activeTab: ActiveTab;
@@ -21,30 +22,32 @@ export const Navigation: React.FC<NavigationProps> = ({
   onSelectTab,
   appVersion,
 }) => {
+  const { t } = useTranslation();
+
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
     {
       id: 'dashboard',
-      label: 'Dashboard',
+      label: t('nav.dashboard'),
       icon: <LayoutDashboard size={18} />,
     },
     {
       id: 'farms',
-      label: 'Farms',
+      label: t('nav.farms'),
       icon: <Sprout size={18} />,
     },
     {
       id: 'backups',
-      label: 'Backups',
+      label: t('nav.backups'),
       icon: <Archive size={18} />,
     },
     {
       id: 'settings',
-      label: 'Settings',
+      label: t('nav.settings'),
       icon: <Settings size={18} />,
     },
     {
       id: 'updates',
-      label: 'Updates',
+      label: t('nav.updates'),
       icon: <Sparkles size={18} />,
     },
   ];
@@ -86,10 +89,10 @@ export const Navigation: React.FC<NavigationProps> = ({
         <div className="system-status-indicator">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Users size={13} style={{ color: 'var(--text-muted)' }} />
-            <span style={{ fontWeight: 600 }}>Local Co-Op</span>
+            <span style={{ fontWeight: 600 }}>{t('nav.localP2P')}</span>
           </div>
           <span style={{ color: 'var(--text-muted)', fontSize: '10.5px' }}>
-            Not Connected
+            {t('nav.notConnected')}
           </span>
         </div>
 
@@ -99,7 +102,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             <span>P2P Sync</span>
           </div>
           <span style={{ color: 'var(--text-muted)', fontSize: '10.5px' }}>
-            Offline
+            {t('common.offline')}
           </span>
         </div>
       </div>

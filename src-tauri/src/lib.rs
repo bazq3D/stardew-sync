@@ -1,6 +1,8 @@
 pub mod commands;
 pub mod core;
 
+pub use commands::{ActiveOperationGuard, ActiveUpdateGuard};
+
 // Re-export common symbols for library consumers
 pub use core::backup::manager::BackupManager;
 pub use core::backup::manifest::{BackupManifest, BackupType};
@@ -44,6 +46,9 @@ pub fn run() {
             commands::list_snapshots,
             commands::verify_snapshot_integrity,
             commands::check_for_updates,
+            commands::get_update_eligibility,
+            commands::acquire_update_reservation,
+            commands::release_update_reservation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

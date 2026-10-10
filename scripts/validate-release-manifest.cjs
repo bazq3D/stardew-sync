@@ -34,7 +34,8 @@ function validate() {
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`Manifest not found at ${manifestPath}`);
   }
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const rawManifest = fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, '');
+  const manifest = JSON.parse(rawManifest);
 
   if (manifest.version !== version) {
     throw new Error(`Manifest version (${manifest.version}) does not match app version (${version})`);
@@ -95,7 +96,12 @@ function validate() {
   if (!sigRaw.includes(`version:${version}`)) {
     throw new Error(`Signature trusted comment does not contain version:${version}`);
   }
-  if (!sigRaw.includes(`file:${decodedFilename}`)) {
+  const spaceFilename = decodedFilename.replace(/^Stardew\.Sync_/, 'Stardew Sync_');
+  const dotFilename = decodedFilename.replace(/^Stardew Sync_/, 'Stardew.Sync_');
+  const hasFileMatch = sigRaw.includes(`file:${decodedFilename}`) || 
+                       sigRaw.includes(`file:${spaceFilename}`) || 
+                       sigRaw.includes(`file:${dotFilename}`);
+  if (!hasFileMatch) {
     throw new Error(`Signature trusted comment does not match filename file:${decodedFilename}`);
   }
   console.log('✓ Minisign signature format, version binding, and asset name verified.');

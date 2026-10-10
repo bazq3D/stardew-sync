@@ -23,9 +23,12 @@ import { BackupsPage } from './pages/BackupsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UpdatesPage } from './pages/UpdatesPage';
 import { FarmModal } from './components/FarmModal';
+import { useTranslation } from './i18n/LanguageContext';
 import './styles/main.css';
 
 export const App: React.FC = () => {
+  const { t } = useTranslation();
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [theme, setTheme] = useState<ThemeMode>(() => {
     return (localStorage.getItem('theme') as ThemeMode) || 'dark';
@@ -121,15 +124,15 @@ export const App: React.FC = () => {
   const getPageTitle = (tab: ActiveTab): string => {
     switch (tab) {
       case 'dashboard':
-        return 'Overview Dashboard';
+        return t('header.pageTitles.dashboard');
       case 'farms':
-        return 'Farm Saves Discovery';
+        return t('header.pageTitles.farms');
       case 'backups':
-        return 'Snapshot Management';
+        return t('header.pageTitles.backups');
       case 'settings':
-        return 'Application Settings';
+        return t('header.pageTitles.settings');
       case 'updates':
-        return 'Software Updates';
+        return t('header.pageTitles.updates');
     }
   };
 

@@ -70,7 +70,8 @@ pub struct FarmDetailedMetadata {
     pub farmhands: Vec<PlayerSummary>,
     pub cabins: Vec<CabinSummary>,
     pub in_game_date: String,
-    pub play_time_hours: f64,
+    pub play_time_hours: Option<f64>,
+    pub play_time_formatted: String,
     pub game_version: String,
     pub sha256_primary: Option<String>,
     pub sha256_savegameinfo: Option<String>,
@@ -110,6 +111,232 @@ pub struct UpdateCheckResult {
     pub latest_version: Option<String>,
     pub release_notes: Option<String>,
     pub status_message: String,
+}
+
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Mutex;
+use std::time::Instant;
+
+pub const STATE_IDLE: u8 = 0;
+pub const STATE_SAVE_OPERATION: u8 = 1;
+pub const STATE_UPDATE_RESERVED: u8 = 2;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateReservationData {
+    pub token: String,
+    pub created_at: Instant,
+}
+
+static SYSTEM_OPERATION_STATE: AtomicU8 = AtomicU8::new(STATE_IDLE);
+static ACTIVE_UPDATE_RESERVATION: Mutex<Option<UpdateReservationData>> = Mutex::new(None);
+
+/// Backend-authoritative guard for active save-critical operations.
+/// While held, `ActiveOperationGuard::is_active()` returns true, and update installation is paused.
+#[derive(Debug)]
+pub struct ActiveOperationGuard;
+
+impl ActiveOperationGuard {
+    /// Attempts to acquire the active save-operation lock.
+    /// Fails with an error if another save-critical operation is already in progress,
+    /// or if an application update is currently being applied.
+    pub fn acquire() -> Result<Self, &'static str> {
+        match SYSTEM_OPERATION_STATE.compare_exchange(
+            STATE_IDLE,
+            STATE_SAVE_OPERATION,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
+            Ok(_) => Ok(ActiveOperationGuard),
+            Err(STATE_UPDATE_RESERVED) => {
+                Err("Cannot perform save operation: application update installation is in progress. If an update was interrupted, please restart Stardew Sync.")
+            }
+            Err(STATE_SAVE_OPERATION) => {
+                Err("Another save-critical operation is already in progress.")
+            }
+            Err(_) => Err("System busy with another operation."),
+        }
+    }
+
+    /// Queries whether any save-critical operation is currently active in the backend.
+    pub fn is_active() -> bool {
+        SYSTEM_OPERATION_STATE.load(Ordering::SeqCst) == STATE_SAVE_OPERATION
+    }
+
+    /// Explicitly resets the operation state (used for testing and teardown).
+    pub fn reset_for_test() {
+        SYSTEM_OPERATION_STATE.store(STATE_IDLE, Ordering::SeqCst);
+        if let Ok(mut lock) = ACTIVE_UPDATE_RESERVATION.lock() {
+            *lock = None;
+        }
+    }
+}
+
+impl Drop for ActiveOperationGuard {
+    fn drop(&mut self) {
+        let _ = SYSTEM_OPERATION_STATE.compare_exchange(
+            STATE_SAVE_OPERATION,
+            STATE_IDLE,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        );
+    }
+}
+
+/// Backend-authoritative guard for update package download and installation.
+/// Eliminates the TOCTOU race by reserving the installation lifecycle so that
+/// no save-critical operations can begin while an update is in progress.
+/// Requires an unguessable ownership token for acquisition and release.
+#[derive(Debug)]
+pub struct ActiveUpdateGuard {
+    token: String,
+}
+
+impl ActiveUpdateGuard {
+    /// Attempts to acquire an RAII guard for the update reservation.
+    /// Dropping this guard automatically releases the reservation using its token.
+    pub fn acquire_guard() -> Result<Self, &'static str> {
+        let token = Self::acquire()?;
+        Ok(ActiveUpdateGuard { token })
+    }
+
+    /// Attempts to reserve an update installation slot.
+    /// On success, generates and stores a unique cryptographically secure ownership token (UUID v4)
+    /// and returns the token string.
+    /// Fails immediately if a save-critical operation is running, or if an update is already in progress.
+    pub fn acquire() -> Result<String, &'static str> {
+        let mut lock = ACTIVE_UPDATE_RESERVATION
+            .lock()
+            .map_err(|_| "Failed to acquire internal reservation lock.")?;
+
+        match SYSTEM_OPERATION_STATE.compare_exchange(
+            STATE_IDLE,
+            STATE_UPDATE_RESERVED,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
+            Ok(_) => {
+                let token = uuid::Uuid::new_v4().to_string();
+                *lock = Some(UpdateReservationData {
+                    token: token.clone(),
+                    created_at: Instant::now(),
+                });
+                Ok(token)
+            }
+            Err(STATE_SAVE_OPERATION) => {
+                Err("Cannot install update: a save-critical operation is in progress.")
+            }
+            Err(STATE_UPDATE_RESERVED) => {
+                Err("An update installation is already in progress.")
+            }
+            Err(_) => Err("System busy with another operation."),
+        }
+    }
+
+    pub fn token(&self) -> &str {
+        &self.token
+    }
+
+    pub fn is_active() -> bool {
+        SYSTEM_OPERATION_STATE.load(Ordering::SeqCst) == STATE_UPDATE_RESERVED
+    }
+
+    /// Releases the active update reservation IF and ONLY IF the provided token
+    /// exactly matches the active reservation's ownership token.
+    ///
+    /// - Rejects empty or whitespace-only tokens.
+    /// - Rejects release attempts when no update reservation is active (e.g. while in STATE_SAVE_OPERATION or STATE_IDLE).
+    /// - Rejects mismatched, stale, or already-released tokens without modifying state.
+    pub fn release_with_token(token: &str) -> Result<bool, &'static str> {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            return Err("Reservation token cannot be empty.");
+        }
+
+        let mut lock = ACTIVE_UPDATE_RESERVATION
+            .lock()
+            .map_err(|_| "Failed to acquire internal reservation lock.")?;
+
+        let current_state = SYSTEM_OPERATION_STATE.load(Ordering::SeqCst);
+        if current_state != STATE_UPDATE_RESERVED {
+            return Err("No active update reservation to release.");
+        }
+
+        match &*lock {
+            Some(res_data) => {
+                if res_data.token == trimmed {
+                    *lock = None;
+                    SYSTEM_OPERATION_STATE.store(STATE_IDLE, Ordering::SeqCst);
+                    Ok(true)
+                } else {
+                    Err("Reservation token mismatch: provided token does not match active update reservation.")
+                }
+            }
+            None => {
+                Err("No active update reservation data found.")
+            }
+        }
+    }
+
+    pub fn reset_for_test() {
+        SYSTEM_OPERATION_STATE.store(STATE_IDLE, Ordering::SeqCst);
+        if let Ok(mut lock) = ACTIVE_UPDATE_RESERVATION.lock() {
+            *lock = None;
+        }
+    }
+
+    pub fn active_token_for_test() -> Option<String> {
+        ACTIVE_UPDATE_RESERVATION.lock().ok()?.as_ref().map(|d| d.token.clone())
+    }
+}
+
+impl Drop for ActiveUpdateGuard {
+    fn drop(&mut self) {
+        let _ = Self::release_with_token(&self.token);
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UpdateEligibility {
+    pub can_update: bool,
+    pub is_game_running: bool,
+    pub is_save_operation_active: bool,
+    pub reason: String,
+}
+
+/// Decoupled update evaluation: Stardew Sync updates modify application files only,
+/// so they are completely safe while Stardew Valley is running. They are only paused
+/// if an active in-flight save operation/migration is underway in the backend or frontend.
+///
+/// Backend state (`ActiveOperationGuard`) is authoritative: if the backend is actively
+/// running a save-critical operation, updates are paused even if the frontend passes false.
+/// If either backend or frontend reports an active operation, a safe default-deny applies.
+pub fn check_update_eligibility(
+    is_game_running: bool,
+    frontend_flag: bool,
+) -> UpdateEligibility {
+    let backend_active = ActiveOperationGuard::is_active();
+    let is_save_operation_active = backend_active || frontend_flag;
+
+    if is_save_operation_active {
+        UpdateEligibility {
+            can_update: false,
+            is_game_running,
+            is_save_operation_active: true,
+            reason: "An active save backup, restore, or migration is currently running. Application updates are paused to protect active operations.".to_string(),
+        }
+    } else {
+        let reason = if is_game_running {
+            "Updates are allowed while Stardew Valley is running because the updater only modifies Stardew Sync application files and never touches game saves.".to_string()
+        } else {
+            "Ready for application updates.".to_string()
+        };
+        UpdateEligibility {
+            can_update: true,
+            is_game_running,
+            is_save_operation_active: false,
+            reason,
+        }
+    }
 }
 
 /// Generic path resolution: dynamic environment-derived Stardew Valley save directory
@@ -198,6 +425,46 @@ pub fn extract_date_from_xml_element(elem: &xmltree::Element) -> (String, u32, u
     let summary = format!("{}, Day {} (Year {})", season_name, day, year);
 
     (season_name, day, year, summary)
+}
+
+/// Authoritative playtime extraction: In Stardew Valley save files, millisecondsPlayed
+/// is tracked on the `<Farmer>` entity.
+/// In SaveGame, the host farmer is `<player><millisecondsPlayed>`.
+/// In SaveGameInfo, the root element itself is `<Farmer><millisecondsPlayed>`.
+pub fn extract_milliseconds_played(root: &xmltree::Element) -> Option<u64> {
+    // 1. If root is SaveGame, inspect <player><millisecondsPlayed>
+    if root.name == "SaveGame" {
+        if let Some(player) = root.get_child("player") {
+            if let Some(ms) = get_child_text(player, "millisecondsPlayed").and_then(|s| s.trim().parse::<u64>().ok()) {
+                return Some(ms);
+            }
+        }
+    }
+    // 2. Direct child (when root is Farmer in SaveGameInfo, or if element is <player>)
+    if let Some(ms) = get_child_text(root, "millisecondsPlayed").and_then(|s| s.trim().parse::<u64>().ok()) {
+        return Some(ms);
+    }
+    None
+}
+
+/// Converts milliseconds to decimal hours with high precision.
+pub fn ms_to_hours(ms: u64) -> f64 {
+    (ms as f64) / 3_600_000.0
+}
+
+/// Formats playtime into a human-readable summary string: e.g. "18h 54m (18.9 hours)".
+/// Returns "Unknown" if millisecondsPlayed is missing or invalid.
+pub fn format_playtime_summary(ms_opt: Option<u64>) -> String {
+    match ms_opt {
+        Some(ms) => {
+            let total_secs = ms / 1000;
+            let hours = total_secs / 3600;
+            let mins = (total_secs % 3600) / 60;
+            let decimal_hours = ms_to_hours(ms);
+            format!("{}h {}m ({:.1} hours)", hours, mins, decimal_hours)
+        }
+        None => "Unknown".to_string(),
+    }
 }
 
 #[tauri::command]
@@ -377,10 +644,21 @@ pub fn get_farm_metadata(folder_name: String) -> Result<FarmDetailedMetadata, St
 
     let game_id = get_child_text(&parsed.root, "uniqueIDForThisGame").unwrap_or_default();
     let game_version = get_child_text(&parsed.root, "gameVersion").unwrap_or_else(|| "1.6".to_string());
-    let ms_played: u64 = get_child_text(&parsed.root, "millisecondsPlayed")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-    let play_time_hours = (ms_played as f64) / (1000.0 * 60.0 * 60.0);
+    
+    // Authoritative playtime: check <player><millisecondsPlayed> on primary save, fallback to SaveGameInfo
+    let ms_played = extract_milliseconds_played(&parsed.root).or_else(|| {
+        if save_game_info_path.is_file() {
+            if let Ok(info_str) = fs::read_to_string(&save_game_info_path) {
+                if let Ok(info_elem) = xmltree::Element::parse(std::io::Cursor::new(info_str.as_bytes())) {
+                    return extract_milliseconds_played(&info_elem);
+                }
+            }
+        }
+        None
+    });
+
+    let play_time_hours = ms_played.map(ms_to_hours);
+    let play_time_formatted = format_playtime_summary(ms_played);
 
     let in_game_date = format!(
         "{}, Day {} (Year {})",
@@ -401,6 +679,7 @@ pub fn get_farm_metadata(folder_name: String) -> Result<FarmDetailedMetadata, St
         cabins: parsed.metadata.cabins,
         in_game_date,
         play_time_hours,
+        play_time_formatted,
         game_version,
         sha256_primary,
         sha256_savegameinfo,
@@ -548,3 +827,31 @@ pub fn check_for_updates() -> Result<UpdateCheckResult, String> {
         ),
     })
 }
+
+#[tauri::command]
+pub fn get_update_eligibility(
+    is_save_operation_active: Option<bool>,
+) -> Result<UpdateEligibility, String> {
+    let checker = SystemProcessChecker;
+    let targets = [
+        "Stardew Valley.exe",
+        "Stardew Valley",
+        "StardewModdingAPI.exe",
+        "StardewModdingAPI",
+    ];
+    let is_running = checker.is_process_running(&targets);
+    let is_save_active = is_save_operation_active.unwrap_or(false);
+    Ok(check_update_eligibility(is_running, is_save_active))
+}
+
+#[tauri::command]
+pub fn acquire_update_reservation() -> Result<String, String> {
+    ActiveUpdateGuard::acquire().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn release_update_reservation(token: String) -> Result<bool, String> {
+    ActiveUpdateGuard::release_with_token(&token).map_err(|e| e.to_string())
+}
+
+

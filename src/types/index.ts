@@ -67,7 +67,8 @@ export interface FarmDetailedMetadata {
   farmhands: PlayerSummary[];
   cabins: CabinSummary[];
   in_game_date: string;
-  play_time_hours: number;
+  play_time_hours: number | null;
+  play_time_formatted?: string;
   game_version: string;
   sha256_primary: string | null;
   sha256_savegameinfo: string | null;
@@ -103,6 +104,13 @@ export interface UpdateCheckResult {
   latest_version: string | null;
   release_notes: string | null;
   status_message: string;
+}
+
+export interface UpdateEligibility {
+  can_update: boolean;
+  is_game_running: boolean;
+  is_save_operation_active: boolean;
+  reason: string;
 }
 
 export type ThemeMode = "dark" | "light" | "system";

@@ -7,6 +7,7 @@ import {
   SnapshotInfo,
   SnapshotVerification,
   UpdateCheckResult,
+  UpdateEligibility,
 } from "../types";
 
 // Helper to detect if running inside Tauri webview
@@ -133,6 +134,7 @@ export async function fetchFarmMetadata(folderName: string): Promise<FarmDetaile
       ],
       in_game_date: "Fall, Day 23 (Year 1)",
       play_time_hours: 42.6,
+      play_time_formatted: "42h 36m (42.6 hours)",
       game_version: "1.6",
       sha256_primary: "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
       sha256_savegameinfo: "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
@@ -181,3 +183,37 @@ export async function checkAppUpdates(): Promise<UpdateCheckResult> {
   }
   return await invoke<UpdateCheckResult>("check_for_updates");
 }
+
+export async function fetchUpdateEligibility(
+  isSaveOperationActive = false
+): Promise<UpdateEligibility> {
+  if (!isTauriEnvironment()) {
+    return {
+      can_update: !isSaveOperationActive,
+      is_game_running: false,
+      is_save_operation_active: isSaveOperationActive,
+      reason: isSaveOperationActive
+        ? "Active save operation in progress."
+        : "Browser preview mode: updates allowed.",
+    };
+  }
+  return await invoke<UpdateEligibility>("get_update_eligibility", {
+    isSaveOperationActive,
+  });
+}
+
+export async function reserveUpdateSlot(): Promise<string> {
+  if (!isTauriEnvironment()) {
+    return "mock-browser-token-" + Date.now();
+  }
+  return await invoke<string>("acquire_update_reservation");
+}
+
+export async function releaseUpdateSlot(token: string): Promise<boolean> {
+  if (!isTauriEnvironment()) {
+    return true;
+  }
+  return await invoke<boolean>("release_update_reservation", { token });
+}
+
+

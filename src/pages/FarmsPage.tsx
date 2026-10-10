@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Info,
 } from 'lucide-react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface FarmsPageProps {
   farms: FarmInfo[];
@@ -23,6 +24,8 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
   onRefresh,
   onInspectFarm,
 }) => {
+  const { t, formatNumber, formatDateSummary } = useTranslation();
+
   // Separate standard/active farms from registered test fixtures
   const standardFarms = farms.filter((f) => !f.is_test_fixture);
   const fixtureFarms = farms.filter((f) => f.is_test_fixture);
@@ -34,9 +37,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <ShieldCheck size={20} />
           <div>
-            <strong>Dynamic Save Discovery:</strong> All save slots detected in your
-            Stardew Valley saves folder are listed below. All saves operate under a
-            default-deny read-only model. Save mutations are strictly prohibited.
+            <strong>{t('farms.bannerTitle')}</strong> {t('farms.bannerText')}
           </div>
         </div>
         <button
@@ -46,7 +47,7 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
           style={{ flexShrink: 0, marginLeft: '12px' }}
         >
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          <span>Refresh</span>
+          <span>{t('common.refresh')}</span>
         </button>
       </div>
 
@@ -55,11 +56,11 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <Sprout size={18} style={{ color: 'var(--accent-primary)' }} />
           <h2 style={{ fontSize: '16px', fontWeight: 700 }}>
-            Discovered Farms ({standardFarms.length})
+            {t('farms.discoveredFarms', { count: standardFarms.length })}
           </h2>
           <span className="badge badge-success">
             <Lock size={10} />
-            READ-ONLY
+            {t('common.readOnly')}
           </span>
         </div>
 
@@ -67,10 +68,10 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
           <div className="card" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <Info size={24} style={{ marginBottom: '8px', opacity: 0.7 }} />
             <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              No Farms Discovered
+              {t('farms.noFarmsTitle')}
             </p>
             <p style={{ fontSize: '13px' }}>
-              No standard save folders found. Start or load a farm in Stardew Valley to see it here.
+              {t('farms.noFarmsDesc')}
             </p>
           </div>
         ) : (
@@ -88,50 +89,50 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
                     <span>{farm.farm_name}</span>
                   </div>
                   {farm.is_legacy_production ? (
-                    <span className="badge badge-gold">PRIMARY BASELINE</span>
+                    <span className="badge badge-gold">{t('common.primaryBaseline')}</span>
                   ) : (
-                    <span className="badge badge-success">PROTECTED</span>
+                    <span className="badge badge-success">{t('common.protected')}</span>
                   )}
                 </div>
 
                 <div className="card-body">
                   <div className="kv-list">
                     <div className="kv-item">
-                      <span className="kv-key">Farm Host</span>
+                      <span className="kv-key">{t('farms.farmHost')}</span>
                       <strong className="kv-val" style={{ color: 'var(--accent-gold)' }}>
                         {farm.host_name}
                       </strong>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Farmhands</span>
+                      <span className="kv-key">{t('farms.farmhandsCount')}</span>
                       <span className="kv-val">
                         {farm.farmhands.length > 0
                           ? farm.farmhands.join(', ')
-                          : 'None (Single-player)'}
+                          : t('dashboard.singlePlayer')}
                       </span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">In-Game Calendar</span>
-                      <span className="kv-val">{farm.date_summary}</span>
+                      <span className="kv-key">{t('farmModal.inGameCalendar')}</span>
+                      <span className="kv-val">{formatDateSummary(farm.date_summary)}</span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Current Wealth</span>
+                      <span className="kv-key">{t('dashboard.currentFunds')}</span>
                       <span className="kv-val" style={{ color: 'var(--accent-gold)' }}>
-                        {farm.money.toLocaleString()}g
+                        {formatNumber(farm.money)}g
                       </span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Folder Name</span>
+                      <span className="kv-key">{t('farmModal.saveFolder')}</span>
                       <span className="code-box" style={{ padding: '1px 6px' }}>{farm.folder_name}</span>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Last saved: {farm.last_modified}
+                      {t('farms.lastPlayed')}: {farm.last_modified}
                     </span>
                     <button className="btn btn-secondary btn-sm">
-                      <span>Inspect</span>
+                      <span>{t('common.inspect')}</span>
                       <ArrowRight size={12} />
                     </button>
                   </div>
@@ -148,9 +149,9 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
             <FlaskConical size={18} style={{ color: 'var(--status-info)' }} />
             <h2 style={{ fontSize: '16px', fontWeight: 700 }}>
-              Registered Test Fixtures ({fixtureFarms.length})
+              {t('farms.registeredFixtures', { count: fixtureFarms.length })}
             </h2>
-            <span className="badge badge-info">ISOLATED FIXTURE</span>
+            <span className="badge badge-info">{t('common.testFixture')}</span>
           </div>
 
           <div className="card-grid">
@@ -166,43 +167,43 @@ export const FarmsPage: React.FC<FarmsPageProps> = ({
                     <FlaskConical size={16} style={{ color: 'var(--status-info)' }} />
                     <span>{farm.farm_name}</span>
                   </div>
-                  <span className="badge badge-info">TEST FIXTURE</span>
+                  <span className="badge badge-info">{t('common.testFixture')}</span>
                 </div>
 
                 <div className="card-body">
                   <div className="kv-list">
                     <div className="kv-item">
-                      <span className="kv-key">Designated Host</span>
+                      <span className="kv-key">{t('farms.farmHost')}</span>
                       <strong className="kv-val">{farm.host_name}</strong>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Farmhands</span>
+                      <span className="kv-key">{t('farms.farmhandsCount')}</span>
                       <span className="kv-val">
                         {farm.farmhands.length > 0
                           ? farm.farmhands.join(', ')
-                          : 'None'}
+                          : t('dashboard.singlePlayer')}
                       </span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">In-Game Calendar</span>
-                      <span className="kv-val">{farm.date_summary}</span>
+                      <span className="kv-key">{t('farmModal.inGameCalendar')}</span>
+                      <span className="kv-val">{formatDateSummary(farm.date_summary)}</span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Funds</span>
-                      <span className="kv-val">{farm.money.toLocaleString()}g</span>
+                      <span className="kv-key">{t('dashboard.currentFunds')}</span>
+                      <span className="kv-val">{formatNumber(farm.money)}g</span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Folder Name</span>
+                      <span className="kv-key">{t('farmModal.saveFolder')}</span>
                       <span className="code-box" style={{ padding: '1px 6px' }}>{farm.folder_name}</span>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Last saved: {farm.last_modified}
+                      {t('farms.lastPlayed')}: {farm.last_modified}
                     </span>
                     <button className="btn btn-secondary btn-sm">
-                      <span>Inspect</span>
+                      <span>{t('common.inspect')}</span>
                       <ArrowRight size={12} />
                     </button>
                   </div>

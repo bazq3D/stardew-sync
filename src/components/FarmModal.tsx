@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FarmDetailedMetadata } from '../types';
 import {
   X,
@@ -11,6 +11,7 @@ import {
   Database,
   Lock,
 } from 'lucide-react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface FarmModalProps {
   metadata: FarmDetailedMetadata | null;
@@ -23,6 +24,18 @@ export const FarmModal: React.FC<FarmModalProps> = ({
   loading,
   onClose,
 }) => {
+  const { t, formatPlaytimeHours, formatDateSummary } = useTranslation();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   if (!metadata && !loading) return null;
 
   return (
@@ -39,7 +52,9 @@ export const FarmModal: React.FC<FarmModalProps> = ({
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span className="modal-title">
-              {loading ? 'Inspecting Save...' : `${metadata?.farm_name} Farm Details`}
+              {loading
+                ? t('farmModal.inspecting')
+                : t('farmModal.title', { name: metadata?.farm_name || '' })}
             </span>
             {metadata && (
               <span
@@ -52,17 +67,17 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                 }`}
               >
                 {metadata.is_legacy_production
-                  ? 'PRIMARY BASELINE'
+                  ? t('common.primaryBaseline')
                   : metadata.is_test_fixture
-                  ? 'TEST FIXTURE'
-                  : 'PROTECTED SAVE'}
+                  ? t('common.testFixture')
+                  : t('common.protected')}
               </span>
             )}
           </div>
           <button
             className="btn btn-ghost btn-icon"
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t('common.close')}
           >
             <X size={18} />
           </button>
@@ -73,7 +88,7 @@ export const FarmModal: React.FC<FarmModalProps> = ({
             <div style={{ textAlign: 'center', padding: '40px 0' }}>
               <div className="pulse-dot pulse-dot-active" style={{ width: '16px', height: '16px' }} />
               <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>
-                Parsing Stardew save XML safely...
+                {t('farmModal.inspecting')}
               </p>
             </div>
           ) : metadata ? (
@@ -82,9 +97,7 @@ export const FarmModal: React.FC<FarmModalProps> = ({
               <div className="banner banner-info" style={{ marginBottom: '12px' }}>
                 <Lock size={16} />
                 <div>
-                  <strong>Read-Only Inspection Mode:</strong> This view inspects
-                  the save structure without altering bytes. Writing to live production
-                  is strictly locked.
+                  <strong>{t('farmModal.safetyNotice')}</strong>
                 </div>
               </div>
 
@@ -93,34 +106,34 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                 <div className="card-header" style={{ marginBottom: '8px' }}>
                   <div className="card-title">
                     <Database size={15} />
-                    <span>General Information</span>
+                    <span>{t('farmModal.generalInfo')}</span>
                   </div>
                 </div>
                 <div className="kv-list">
                   <div className="kv-item">
-                    <span className="kv-key">Save Folder</span>
+                    <span className="kv-key">{t('farmModal.saveFolder')}</span>
                     <span className="code-box" style={{ padding: '2px 6px' }}>{metadata.folder_name}</span>
                   </div>
                   <div className="kv-item">
-                    <span className="kv-key">Game ID (uniqueIDForThisGame)</span>
+                    <span className="kv-key">{t('farmModal.gameId')}</span>
                     <span className="code-box" style={{ padding: '2px 6px' }}>{metadata.game_id}</span>
                   </div>
                   <div className="kv-item">
-                    <span className="kv-key">In-Game Calendar</span>
+                    <span className="kv-key">{t('farmModal.inGameCalendar')}</span>
                     <span className="kv-val" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Calendar size={13} style={{ color: 'var(--accent-primary)' }} />
-                      {metadata.in_game_date}
+                      {formatDateSummary(metadata.in_game_date)}
                     </span>
                   </div>
                   <div className="kv-item">
-                    <span className="kv-key">Total Play Time</span>
+                    <span className="kv-key">{t('farmModal.playTimeLabel')}</span>
                     <span className="kv-val" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Clock size={13} />
-                      {metadata.play_time_hours.toFixed(1)} hours
+                      {formatPlaytimeHours(metadata.play_time_hours)}
                     </span>
                   </div>
                   <div className="kv-item">
-                    <span className="kv-key">Engine Version</span>
+                    <span className="kv-key">{t('farmModal.engineVersion')}</span>
                     <span className="kv-val">{metadata.game_version}</span>
                   </div>
                 </div>
@@ -131,34 +144,36 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                 <div className="card-header" style={{ marginBottom: '8px' }}>
                   <div className="card-title">
                     <User size={15} style={{ color: 'var(--accent-gold)' }} />
-                    <span>Root Host (Primary Farmer)</span>
+                    <span>{t('farmModal.rootHostTitle')}</span>
                   </div>
                 </div>
                 {metadata.host ? (
                   <div className="kv-list">
                     <div className="kv-item">
-                      <span className="kv-key">Host Name</span>
+                      <span className="kv-key">{t('farmModal.hostName')}</span>
                       <strong className="kv-val" style={{ color: 'var(--accent-gold)' }}>
                         {metadata.host.name}
                       </strong>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">UniqueMultiplayerID</span>
+                      <span className="kv-key">{t('farmModal.uniqueId')}</span>
                       <span className="code-box" style={{ padding: '2px 6px' }}>
                         {metadata.host.unique_multiplayer_id}
                       </span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">Home Residence</span>
+                      <span className="kv-key">{t('farmModal.homeLocation')}</span>
                       <span className="kv-val">{metadata.host.home_location}</span>
                     </div>
                     <div className="kv-item">
-                      <span className="kv-key">House Upgrade Level</span>
-                      <span className="kv-val">Level {metadata.host.house_upgrade_level}</span>
+                      <span className="kv-key">{t('farmModal.houseUpgrade')}</span>
+                      <span className="kv-val">
+                        {t('common.level', { level: metadata.host.house_upgrade_level })}
+                      </span>
                     </div>
                   </div>
                 ) : (
-                  <p style={{ color: 'var(--text-muted)' }}>No host farmer found.</p>
+                  <p style={{ color: 'var(--text-muted)' }}>{t('farmModal.noHost')}</p>
                 )}
               </div>
 
@@ -167,7 +182,7 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                 <div className="card-header" style={{ marginBottom: '8px' }}>
                   <div className="card-title">
                     <Users size={15} style={{ color: 'var(--accent-primary)' }} />
-                    <span>Farmhands ({metadata.farmhands.length})</span>
+                    <span>{t('farmModal.farmhandsTitle', { count: metadata.farmhands.length })}</span>
                   </div>
                 </div>
                 {metadata.farmhands.length > 0 ? (
@@ -188,7 +203,7 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                   </div>
                 ) : (
                   <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-                    No additional farmhands in this save.
+                    {t('farmModal.noFarmhands')}
                   </p>
                 )}
               </div>
@@ -199,7 +214,7 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                   <div className="card-header" style={{ marginBottom: '8px' }}>
                     <div className="card-title">
                       <Home size={15} />
-                      <span>Cabins ({metadata.cabins.length})</span>
+                      <span>{t('farmModal.cabinsTitle', { count: metadata.cabins.length })}</span>
                     </div>
                   </div>
                   <div className="kv-list">
@@ -225,13 +240,13 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                 <div className="card-header" style={{ marginBottom: '8px' }}>
                   <div className="card-title">
                     <Hash size={15} />
-                    <span>Live Cryptographic SHA-256</span>
+                    <span>{t('farmModal.integrityTitle')}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Primary Save File Hash:
+                      {t('farmModal.primaryFile')}:
                     </span>
                     <div className="code-box">
                       {metadata.sha256_primary || 'Calculating...'}
@@ -239,7 +254,7 @@ export const FarmModal: React.FC<FarmModalProps> = ({
                   </div>
                   <div>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      SaveGameInfo Hash:
+                      {t('farmModal.saveGameInfoFile')}:
                     </span>
                     <div className="code-box">
                       {metadata.sha256_savegameinfo || 'Calculating...'}
@@ -253,7 +268,7 @@ export const FarmModal: React.FC<FarmModalProps> = ({
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>
-            Close Inspector
+            {t('farmModal.closeButton')}
           </button>
         </div>
       </div>

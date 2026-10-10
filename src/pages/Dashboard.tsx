@@ -14,6 +14,7 @@ import {
   Sprout,
   Info,
 } from 'lucide-react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface DashboardProps {
   appStatus: AppStatus | null;
@@ -32,6 +33,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onNavigate,
   onInspectFarm,
 }) => {
+  const { t, formatNumber, formatDateSummary } = useTranslation();
   // Select the current farm: either legacy production if present, or the first discovered farm
   const currentFarm = farms.find((f) => f.is_legacy_production) || farms[0] || null;
   const isRunning = processStatus?.is_stardew_running ?? false;
@@ -42,11 +44,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="banner banner-warning">
         <CloudOff size={20} />
         <div>
-          <strong>Phase 5.1 Public Foundation Notice:</strong> P2P Save
-          Synchronization & remote replication are currently <strong>Offline</strong>.
-          All discovered save data is monitored in default-deny read-only mode with
-          cryptographic SHA-256 integrity checks. Remote pairing and network transport
-          will be enabled in Phase 6.0.
+          <strong>{t('dashboard.bannerTitle')}</strong> {t('dashboard.bannerNotice')}
         </div>
       </div>
 
@@ -56,13 +54,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="metric-card">
           <div className="metric-label">
             <ShieldCheck size={14} style={{ color: 'var(--accent-primary)' }} />
-            <span>App Version</span>
+            <span>{t('dashboard.appVersion')}</span>
           </div>
           <div className="metric-value">
-            v{appStatus?.app_version || '0.1.1'}
+            v{appStatus?.app_version || '0.1.3'}
           </div>
           <div className="metric-sub">
-            Built by bazq • Tauri 2 Native
+            {t('dashboard.builtBy')}
           </div>
         </div>
 
@@ -75,7 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 color: isRunning ? 'var(--status-warning)' : 'var(--status-success)',
               }}
             />
-            <span>Stardew Process</span>
+            <span>{t('dashboard.stardewProcess')}</span>
           </div>
           <div className="metric-value">
             <span
@@ -83,13 +81,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 isRunning ? 'badge-warning' : 'badge-success'
               }`}
             >
-              {isRunning ? 'RUNNING' : 'CLOSED'}
+              {isRunning ? t('dashboard.running') : t('dashboard.closed')}
             </span>
           </div>
           <div className="metric-sub">
             {isRunning
-              ? 'Game is active. Safe lock engaged.'
-              : 'Safe for metadata inspection.'}
+              ? t('dashboard.gameActiveSub')
+              : t('dashboard.gameDormantSub')}
           </div>
         </div>
 
@@ -98,17 +96,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
           className="metric-card"
           style={{ cursor: 'pointer' }}
           onClick={() => onNavigate('farms')}
-          title="Click to view discovered farms"
+          title={t('farms.inspectButton')}
         >
           <div className="metric-label">
             <FolderCheck size={14} style={{ color: 'var(--status-info)' }} />
-            <span>Saves Directory</span>
+            <span>{t('dashboard.savesDir')}</span>
           </div>
           <div className="metric-value">
-            {farms.length} {farms.length === 1 ? 'Farm' : 'Farms'}
+            {t('dashboard.farmsCount', {
+              count: farms.length,
+              unit: farms.length === 1 ? t('dashboard.farmSingle') : t('dashboard.farmPlural'),
+            })}
           </div>
           <div className="metric-sub">
-            {farms.length > 0 ? 'Discovered & Protected' : 'No saves detected'}
+            {farms.length > 0 ? t('dashboard.discoveredProtected') : t('dashboard.noSavesDetected')}
           </div>
         </div>
 
@@ -117,17 +118,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
           className="metric-card"
           style={{ cursor: 'pointer' }}
           onClick={() => onNavigate('backups')}
-          title="Click to view local snapshots"
+          title={t('backups.title')}
         >
           <div className="metric-label">
             <Archive size={14} style={{ color: 'var(--accent-gold)' }} />
-            <span>Local Snapshots</span>
+            <span>{t('dashboard.localSnapshots')}</span>
           </div>
           <div className="metric-value">
-            {snapshots.length} {snapshots.length === 1 ? 'Snapshot' : 'Snapshots'}
+            {t('dashboard.snapshotsCount', {
+              count: snapshots.length,
+              unit: snapshots.length === 1 ? t('dashboard.snapshotSingle') : t('dashboard.snapshotPlural'),
+            })}
           </div>
           <div className="metric-sub">
-            SHA-256 Verified Immutable
+            {t('dashboard.sha256Immutable')}
           </div>
         </div>
       </div>
@@ -137,11 +141,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="card-header">
           <div className="card-title">
             <Sprout size={18} style={{ color: 'var(--accent-primary)' }} />
-            <span>Current Farm Overview</span>
+            <span>{t('dashboard.currentFarmOverview')}</span>
           </div>
           <span className="badge badge-success">
             <Lock size={11} />
-            PROTECTED SAVE
+            {t('dashboard.protectedSave')}
           </span>
         </div>
 
@@ -159,55 +163,56 @@ export const Dashboard: React.FC<DashboardProps> = ({
               }}
             >
               <div>
-                <span className="metric-label">Farm Name</span>
+                <span className="metric-label">{t('dashboard.farmName')}</span>
                 <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
                   {currentFarm.farm_name}
                 </span>
               </div>
 
               <div>
-                <span className="metric-label">Farm Host</span>
+                <span className="metric-label">{t('dashboard.farmHost')}</span>
                 <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--accent-gold)' }}>
                   {currentFarm.host_name}
                 </span>
               </div>
 
               <div>
-                <span className="metric-label">Farmhands</span>
+                <span className="metric-label">{t('dashboard.farmhands')}</span>
                 <span style={{ fontSize: '15px', fontWeight: 500, color: 'var(--accent-primary)' }}>
                   {currentFarm.farmhands.length > 0
                     ? currentFarm.farmhands.join(', ')
-                    : 'None (Single-player)'}
+                    : t('dashboard.singlePlayer')}
                 </span>
               </div>
 
               <div>
-                <span className="metric-label">In-Game Calendar</span>
+                <span className="metric-label">{t('dashboard.inGameCalendar')}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 500 }}>
                   <Calendar size={13} style={{ color: 'var(--accent-primary)' }} />
-                  {currentFarm.date_summary}
+                  {formatDateSummary(currentFarm.date_summary)}
                 </span>
               </div>
 
               <div>
-                <span className="metric-label">Current Funds</span>
+                <span className="metric-label">{t('dashboard.currentFunds')}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 600, color: 'var(--accent-gold)' }}>
                   <Coins size={13} />
-                  {currentFarm.money.toLocaleString()}g
+                  {formatNumber(currentFarm.money)}g
                 </span>
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Target Folder: <code className="code-box" style={{ padding: '2px 6px' }}>{currentFarm.folder_name}</code>
+                {t('dashboard.targetFolder')}{' '}
+                <code className="code-box" style={{ padding: '2px 6px' }}>{currentFarm.folder_name}</code>
               </span>
               <button
                 id="btn-inspect-production-farm"
                 className="btn btn-secondary btn-sm"
                 onClick={() => onInspectFarm(currentFarm.folder_name)}
               >
-                <span>Inspect Save Metadata</span>
+                <span>{t('dashboard.inspectMetadata')}</span>
                 <ArrowRight size={13} />
               </button>
             </div>
@@ -216,10 +221,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <Info size={24} style={{ marginBottom: '8px', opacity: 0.7 }} />
             <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              No Stardew Valley Saves Found
+              {t('dashboard.noFarmsFound')}
             </p>
             <p style={{ fontSize: '13px' }}>
-              Launch Stardew Valley and create or load a farm to begin using Stardew Sync.
+              {t('dashboard.noFarmsHelp')}
             </p>
           </div>
         )}
@@ -232,31 +237,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="card-header">
             <div className="card-title">
               <Users size={16} />
-              <span>Co-op Players & Hosting Role</span>
+              <span>{t('dashboard.coopRoles')}</span>
             </div>
           </div>
           <div className="kv-list">
             <div className="kv-item">
-              <span className="kv-key">Primary Farm Host</span>
+              <span className="kv-key">{t('dashboard.primaryHost')}</span>
               <span className="badge badge-gold">
-                {currentFarm ? currentFarm.host_name : 'No Host Detected'}
+                {currentFarm ? currentFarm.host_name : t('dashboard.noHostDetected')}
               </span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">Connected Farmhands</span>
+              <span className="kv-key">{t('dashboard.connectedFarmhands')}</span>
               <span className="kv-val">
                 {currentFarm && currentFarm.farmhands.length > 0
                   ? currentFarm.farmhands.join(', ')
-                  : 'None (Single-player)'}
+                  : t('dashboard.singlePlayer')}
               </span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">Connected Devices</span>
-              <span className="kv-val">Local PC (Current Session)</span>
+              <span className="kv-key">{t('dashboard.connectedDevices')}</span>
+              <span className="kv-val">{t('dashboard.localPc')}</span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">Host Migration Engine</span>
-              <span className="badge badge-success">Ready (Default-Deny Model)</span>
+              <span className="kv-key">{t('dashboard.migrationEngine')}</span>
+              <span className="badge badge-success">{t('dashboard.migrationModel')}</span>
             </div>
           </div>
         </div>
@@ -266,25 +271,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="card-header">
             <div className="card-title">
               <ShieldCheck size={16} style={{ color: 'var(--status-success)' }} />
-              <span>Generic Safety Controls</span>
+              <span>{t('dashboard.safetyControls')}</span>
             </div>
           </div>
           <div className="kv-list">
             <div className="kv-item">
-              <span className="kv-key">All Saves Protection</span>
-              <span className="badge badge-danger">READ-ONLY (Default-Deny)</span>
+              <span className="kv-key">{t('dashboard.allSavesProtection')}</span>
+              <span className="badge badge-danger">{t('dashboard.readOnlyDefaultDeny')}</span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">Xbox WGS Direct Writes</span>
-              <span className="badge badge-danger">PROHIBITED</span>
+              <span className="kv-key">{t('dashboard.wgsWrites')}</span>
+              <span className="badge badge-danger">{t('dashboard.prohibited')}</span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">Automated Restore</span>
-              <span className="badge badge-warning">DISABLED</span>
+              <span className="kv-key">{t('dashboard.automatedRestore')}</span>
+              <span className="badge badge-warning">{t('dashboard.disabled')}</span>
             </div>
             <div className="kv-item">
-              <span className="kv-key">SHA-256 Checksum Matching</span>
-              <span className="badge badge-success">ACTIVE</span>
+              <span className="kv-key">{t('dashboard.checksumMatching')}</span>
+              <span className="badge badge-success">{t('dashboard.active')}</span>
             </div>
           </div>
         </div>

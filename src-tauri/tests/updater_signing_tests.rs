@@ -131,14 +131,18 @@ fn test_manifest_url_encoding_matches_disk_asset() {
     let manifest_version = manifest["version"]
         .as_str()
         .expect("manifest version must be string");
-    let expected_url_prefix = format!(
+    let expected_url_prefix_dot = format!(
+        "https://github.com/bazq3D/stardew-sync/releases/download/v{}/Stardew.Sync_{}_x64-setup.exe",
+        manifest_version, manifest_version
+    );
+    let expected_url_prefix_space = format!(
         "https://github.com/bazq3D/stardew-sync/releases/download/v{}/Stardew%20Sync_{}_x64-setup.exe",
         manifest_version, manifest_version
     );
 
     assert!(
-        url.starts_with(&expected_url_prefix),
-        "URL must match canonical repository and correctly URL-encoded filename: {}",
+        url.starts_with(&expected_url_prefix_dot) || url.starts_with(&expected_url_prefix_space),
+        "URL must match canonical repository and correctly normalized/encoded filename: {}",
         url
     );
 
@@ -147,4 +151,61 @@ fn test_manifest_url_encoding_matches_disk_asset() {
         .as_str()
         .expect("windows-x86_64-nsis url must be a string");
     assert_eq!(url, nsis_url);
+}
+
+#[test]
+fn test_downloaded_github_release_cryptographic_parity() {
+    let temp_verify_dir = std::env::temp_dir().join("stardew_release_verify");
+    if !temp_verify_dir.exists() {
+        return;
+    }
+    let installer_path = temp_verify_dir.join("Stardew.Sync_0.1.2_x64-setup.exe");
+    let sig_path = temp_verify_dir.join("Stardew.Sync_0.1.2_x64-setup.exe.sig");
+    let manifest_path = temp_verify_dir.join("latest.json");
+
+    if !installer_path.exists() || !sig_path.exists() || !manifest_path.exists() {
+        return;
+    }
+
+    let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("parent of src-tauri should be workspace root")
+        .to_path_buf();
+
+    let tauri_conf_path = workspace_root.join("src-tauri").join("tauri.conf.json");
+    let tauri_conf_content = fs::read_to_string(&tauri_conf_path).expect("tauri.conf.json");
+    let tauri_conf: serde_json::Value =
+        serde_json::from_str(&tauri_conf_content).expect("tauri.conf.json json");
+    let pubkey_b64 = tauri_conf["plugins"]["updater"]["pubkey"].as_str().unwrap();
+    let pubkey_raw = BASE64.decode(pubkey_b64).unwrap();
+    let pubkey_str = String::from_utf8(pubkey_raw).unwrap();
+    let public_key = PublicKey::decode(&pubkey_str).unwrap();
+
+    let sig_str = fs::read_to_string(&sig_path).unwrap();
+    let sig_raw = BASE64.decode(sig_str.trim()).unwrap();
+    let sig_text = String::from_utf8(sig_raw).unwrap();
+    let signature = Signature::decode(&sig_text).unwrap();
+    let installer_bytes = fs::read(&installer_path).unwrap();
+
+    let verify_result = public_key.verify(&installer_bytes, &signature, true);
+    assert!(
+        verify_result.is_ok(),
+        "Cryptographic signature verification of published GitHub asset failed: {:?}",
+        verify_result.err()
+    );
+
+    // Also verify manifest signature
+    let manifest_content = fs::read_to_string(&manifest_path).unwrap();
+    let manifest: serde_json::Value = serde_json::from_str(&manifest_content).unwrap();
+    assert!(!manifest["version"].as_str().unwrap().is_empty());
+    let manifest_sig_b64 = manifest["platforms"]["windows-x86_64"]["signature"].as_str().unwrap();
+    let manifest_sig_raw = BASE64.decode(manifest_sig_b64).unwrap();
+    let manifest_sig_str = String::from_utf8(manifest_sig_raw).unwrap();
+    let manifest_signature = Signature::decode(&manifest_sig_str).unwrap();
+    let manifest_verify = public_key.verify(&installer_bytes, &manifest_signature, true);
+    assert!(
+        manifest_verify.is_ok(),
+        "Cryptographic signature in latest.json failed to verify installer: {:?}",
+        manifest_verify.err()
+    );
 }

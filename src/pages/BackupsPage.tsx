@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Lock,
 } from 'lucide-react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface BackupsPageProps {
   snapshots: SnapshotInfo[];
@@ -21,6 +22,7 @@ export const BackupsPage: React.FC<BackupsPageProps> = ({
   loading,
   onRefresh,
 }) => {
+  const { t } = useTranslation();
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [verificationResults, setVerificationResults] = useState<
     Record<string, SnapshotVerification>
@@ -44,21 +46,17 @@ export const BackupsPage: React.FC<BackupsPageProps> = ({
       <div className="banner banner-warning">
         <Lock size={20} />
         <div>
-          <strong>Restore Safety Policy:</strong> Automatic restoration of snapshots
-          to the active `%APPDATA%\StardewValley\Saves` production directory is
-          <strong> intentionally disabled</strong> in Phase 5.0 to prevent
-          accidental overwrite of your live farm progression. All snapshots are
-          immutable and preserved with verified SHA-256 manifests.
+          <strong>{t('backups.safetyNoticeTitle')}</strong> {t('backups.safetyNoticeText')}
         </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '16px', fontWeight: 700 }}>
-            Immutable Local Snapshots
+            {t('backups.title')}
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Captured baseline copies of the production farm with cryptographic integrity checks.
+            {t('backups.subtitle')}
           </p>
         </div>
 
@@ -68,13 +66,13 @@ export const BackupsPage: React.FC<BackupsPageProps> = ({
           disabled={loading}
         >
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          <span>Refresh Snapshots</span>
+          <span>{t('backups.refresh')}</span>
         </button>
       </div>
 
       {snapshots.length === 0 ? (
         <div className="card" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          No snapshots found in production-snapshots directory.
+          {t('backups.noSnapshots')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -100,7 +98,7 @@ export const BackupsPage: React.FC<BackupsPageProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="badge badge-success">
                       <CheckCircle2 size={11} />
-                      IMMUTABLE BASELINE
+                      {t('backups.verified')}
                     </span>
                     <button
                       id={`btn-verify-${snap.id}`}
@@ -113,7 +111,7 @@ export const BackupsPage: React.FC<BackupsPageProps> = ({
                         className={isCurrentlyVerifying ? 'animate-spin' : ''}
                       />
                       <span>
-                        {isCurrentlyVerifying ? 'Verifying...' : 'Verify SHA-256'}
+                        {isCurrentlyVerifying ? t('backups.verifying') : t('backups.verifyButton')}
                       </span>
                     </button>
                   </div>
@@ -122,7 +120,7 @@ export const BackupsPage: React.FC<BackupsPageProps> = ({
                 <div className="card-body">
                   <div className="kv-list">
                     <div className="kv-item">
-                      <span className="kv-key">Created Timestamp</span>
+                      <span className="kv-key">{t('backups.timestamp')}</span>
                       <span className="kv-val" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Clock size={13} />
                         {snap.timestamp}
@@ -130,19 +128,19 @@ export const BackupsPage: React.FC<BackupsPageProps> = ({
                     </div>
 
                     <div className="kv-item">
-                      <span className="kv-key">Disk Location</span>
+                      <span className="kv-key">{t('backups.diskLocation')}</span>
                       <span className="code-box" style={{ padding: '2px 6px' }}>{snap.path}</span>
                     </div>
 
                     <div className="kv-item">
-                      <span className="kv-key">Files in Snapshot ({snap.files.length})</span>
+                      <span className="kv-key">{t('backups.filesInSnapshot', { count: snap.files.length })}</span>
                       <span className="kv-val">
                         {snap.files.join(', ')}
                       </span>
                     </div>
 
                     <div className="kv-item">
-                      <span className="kv-key">Total Archive Size</span>
+                      <span className="kv-key">{t('backups.totalArchiveSize')}</span>
                       <span className="kv-val">
                         {(snap.total_bytes / (1024 * 1024)).toFixed(2)} MB
                       </span>
