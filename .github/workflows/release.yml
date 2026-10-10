@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-pipeline
+  cancel-in-progress: false
+
 jobs:
   build-and-release:
     runs-on: windows-latest
@@ -21,6 +25,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Resolve Release Tag
+        id: release_tag
+        run: node scripts/resolve-release-tag.cjs
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,6 +51,32 @@ jobs:
       - name: Build Frontend
         run: npm run build
 
+      - name: Check For Conflicting Release Assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ steps.release_tag.outputs.tag }}';
+            try {
+              const release = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag
+              });
+              if (release && release.data && release.data.assets && release.data.assets.length > 0) {
+                const existingAssets = release.data.assets.map(a => a.name);
+                core.setFailed(
+                  `Security Halt: Release ${tag} already contains ${existingAssets.length} published asset(s): ` +
+                  `${existingAssets.join(', ')}. ` +
+                  `Aborting workflow to prevent overwriting existing release assets!`
+                );
+              }
+            } catch (err) {
+              if (err.status !== 404) {
+                core.error(`GitHub API check error: ${err.message}`);
+                throw err;
+              }
+            }
+
       - name: Build and Sign Tauri Bundle
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -50,13 +86,25 @@ jobs:
       - name: Validate Release Manifest
         run: node scripts/validate-release-manifest.cjs
 
+      - name: Verify Built Artifact Signature Parity
+        env:
+          REQUIRE_INSTALLER_VERIFY: "1"
+        run: cargo test --test updater_signing_tests test_cryptographic_signature_verification_of_release_artifact
+        working-directory: ./src-tauri
+
+      - name: Verify Release Assets Prior To Publication
+        id: verify_assets
+        run: node scripts/verify-release-assets.cjs
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
           files: |
-            target/release/bundle/nsis/*.exe
-            target/release/bundle/nsis/*.sig
-            target/release/bundle/nsis/latest.json
+            ${{ steps.verify_assets.outputs.installer }}
+            ${{ steps.verify_assets.outputs.sig }}
+            ${{ steps.verify_assets.outputs.manifest }}
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
           generate_release_notes: true
