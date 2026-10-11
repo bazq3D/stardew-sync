@@ -8,6 +8,8 @@ import {
   Sparkles,
   Users,
   WifiOff,
+  User,
+  Radio,
 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 
@@ -36,9 +38,19 @@ export const Navigation: React.FC<NavigationProps> = ({
       icon: <Sprout size={18} />,
     },
     {
+      id: 'characters',
+      label: t('nav.characters'),
+      icon: <User size={18} />,
+    },
+    {
       id: 'backups',
       label: t('nav.backups'),
       icon: <Archive size={18} />,
+    },
+    {
+      id: 'devices',
+      label: t('nav.devices'),
+      icon: <Radio size={18} />,
     },
     {
       id: 'settings',

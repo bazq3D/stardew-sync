@@ -14,15 +14,20 @@ import {
   fetchDiscoveredFarms,
   fetchSnapshots,
   fetchFarmMetadata,
+  isTauriEnvironment,
 } from './api/tauri';
+import { listen } from '@tauri-apps/api/event';
 import { Navigation } from './components/Navigation';
 import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
 import { FarmsPage } from './pages/FarmsPage';
+import { CharactersPage } from './pages/CharactersPage';
 import { BackupsPage } from './pages/BackupsPage';
+import { DevicesPage } from './pages/DevicesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UpdatesPage } from './pages/UpdatesPage';
 import { FarmModal } from './components/FarmModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from './i18n/LanguageContext';
 import './styles/main.css';
 
@@ -109,6 +114,38 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadProcess, loadFarms, loadSnapshots]);
 
+  // Listen for system tray navigation and backend notices
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    if (isTauriEnvironment()) {
+      const setupListeners = async () => {
+        const unlistenTab = await listen<string>('navigate-tab', (event) => {
+          if (['dashboard', 'farms', 'characters', 'backups', 'settings', 'updates'].includes(event.payload)) {
+            setActiveTab(event.payload as ActiveTab);
+          }
+        });
+
+        const unlistenBusy = await listen<string>('operation-busy-warning', (event) => {
+          alert(event.payload);
+        });
+
+        cleanup = () => {
+          unlistenTab();
+          unlistenBusy();
+        };
+      };
+
+      setupListeners();
+    }
+
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, []);
+
   const handleInspectFarm = async (folderName: string) => {
     setLoadingModal(true);
     try {
@@ -127,8 +164,12 @@ export const App: React.FC = () => {
         return t('header.pageTitles.dashboard');
       case 'farms':
         return t('header.pageTitles.farms');
+      case 'characters':
+        return t('header.pageTitles.characters');
       case 'backups':
         return t('header.pageTitles.backups');
+      case 'devices':
+        return t('devices.title');
       case 'settings':
         return t('header.pageTitles.settings');
       case 'updates':
@@ -156,51 +197,62 @@ export const App: React.FC = () => {
           onToggleTheme={toggleTheme}
         />
 
-        <main className="main-view">
-          {activeTab === 'dashboard' && (
-            <Dashboard
-              appStatus={appStatus}
-              processStatus={processStatus}
-              farms={farms}
-              snapshots={snapshots}
-              onNavigate={setActiveTab}
-              onInspectFarm={handleInspectFarm}
-            />
-          )}
+        <ErrorBoundary fallbackTitle="View Rendering Error">
+          <main className="main-view">
+            {activeTab === 'dashboard' && (
+              <Dashboard
+                appStatus={appStatus}
+                processStatus={processStatus}
+                farms={farms}
+                snapshots={snapshots}
+                onNavigate={setActiveTab}
+                onInspectFarm={handleInspectFarm}
+              />
+            )}
 
-          {activeTab === 'farms' && (
-            <FarmsPage
-              farms={farms}
-              loading={loadingFarms}
-              onRefresh={loadFarms}
-              onInspectFarm={handleInspectFarm}
-            />
-          )}
+            {activeTab === 'farms' && (
+              <FarmsPage
+                farms={farms}
+                loading={loadingFarms}
+                onRefresh={loadFarms}
+                onInspectFarm={handleInspectFarm}
+              />
+            )}
 
-          {activeTab === 'backups' && (
-            <BackupsPage
-              snapshots={snapshots}
-              loading={loadingSnapshots}
-              onRefresh={loadSnapshots}
-            />
-          )}
+            {activeTab === 'characters' && (
+              <CharactersPage farms={farms} />
+            )}
 
-          {activeTab === 'settings' && (
-            <SettingsPage
-              appStatus={appStatus}
-              processStatus={processStatus}
-              theme={theme}
-              onSetTheme={setTheme}
-            />
-          )}
+            {activeTab === 'backups' && (
+              <BackupsPage
+                farms={farms}
+                snapshots={snapshots}
+                loading={loadingSnapshots}
+                onRefresh={loadSnapshots}
+              />
+            )}
 
-          {activeTab === 'updates' && (
-            <UpdatesPage
-              appStatus={appStatus}
-              processStatus={processStatus}
-            />
-          )}
-        </main>
+            {activeTab === 'devices' && (
+              <DevicesPage />
+            )}
+
+            {activeTab === 'settings' && (
+              <SettingsPage
+                appStatus={appStatus}
+                processStatus={processStatus}
+                theme={theme}
+                onSetTheme={setTheme}
+              />
+            )}
+
+            {activeTab === 'updates' && (
+              <UpdatesPage
+                appStatus={appStatus}
+                processStatus={processStatus}
+              />
+            )}
+          </main>
+        </ErrorBoundary>
       </div>
 
       {/* Deep Inspection Modal */}
