@@ -63,7 +63,7 @@ export const UpdatesPage: React.FC<UpdatesPageProps> = ({
   }, []);
 
   const isGameRunning = processStatus?.is_stardew_running ?? false;
-  const currentAppVersion = appStatus?.app_version || '0.1.3';
+  const currentAppVersion = appStatus?.app_version || '0.1.4';
   const repoUrl = 'https://github.com/bazq3D/stardew-sync';
   const releaseEndpoint = 'https://github.com/bazq3D/stardew-sync/releases/latest/download/latest.json';
 

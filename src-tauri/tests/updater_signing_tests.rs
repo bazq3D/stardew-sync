@@ -286,8 +286,13 @@ fn test_historical_v0_1_3_regression_signature_verification() {
     let public_key = PublicKey::decode(&pubkey_str).expect("decode minisign public key");
 
     // 2. Read repository-owned v0.1.3 release template manifest
-    let template_path = workspace_root.join("docs").join("updater-release-template.json");
-    let template_content = fs::read_to_string(&template_path).expect("updater-release-template.json must be readable");
+    let template_path = workspace_root.join("docs").join("historical-manifest-v0.1.3.json");
+    let manifest_path = if template_path.exists() {
+        template_path
+    } else {
+        workspace_root.join("docs").join("updater-release-template.json")
+    };
+    let template_content = fs::read_to_string(&manifest_path).expect("v0.1.3 manifest must be readable");
     let manifest: serde_json::Value = serde_json::from_str(&template_content).expect("manifest must parse as JSON");
 
     assert_eq!(manifest["version"].as_str().unwrap(), "0.1.3", "Historical fixture version must be 0.1.3");

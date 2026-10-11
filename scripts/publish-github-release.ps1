@@ -146,12 +146,12 @@ $normalizedSigName = "Stardew.Sync_${Version}_x64-setup.exe.sig"
 $stagedInstallerPath = Join-Path $nsisDir $normalizedInstallerName
 $stagedSigPath = Join-Path $nsisDir $normalizedSigName
 
-# Create identical byte-for-byte normalized copies if needed
+# Move to normalized names if needed to preserve exact 1-installer invariant
 if ($installer.Name -ne $normalizedInstallerName) {
-    Copy-Item -Path $installer.FullName -Destination $stagedInstallerPath -Force
+    Move-Item -Path $installer.FullName -Destination $stagedInstallerPath -Force
 }
 if ($sigFile.Name -ne $normalizedSigName) {
-    Copy-Item -Path $sigFile.FullName -Destination $stagedSigPath -Force
+    Move-Item -Path $sigFile.FullName -Destination $stagedSigPath -Force
 }
 
 $sigContent = (Get-Content -Path $stagedSigPath -Raw).Trim()

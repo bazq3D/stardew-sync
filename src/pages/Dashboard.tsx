@@ -148,7 +148,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span>{t('dashboard.appVersion')}</span>
           </div>
           <div className="metric-value">
-            v{appStatus?.app_version || '0.1.3'}
+            v{appStatus?.app_version || '0.1.4'}
           </div>
           <div className="metric-sub">
             {t('dashboard.builtBy')}

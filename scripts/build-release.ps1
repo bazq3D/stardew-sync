@@ -29,6 +29,11 @@ if ($pkgVersion -ne $tauriVersion) {
 }
 Write-Host "[1/7] Target Release Version: v$pkgVersion" -ForegroundColor Green
 
+$notesFile = Join-Path $rootDir "docs\release-notes\v$pkgVersion.md"
+if ((-not $ReleaseNotes -or $ReleaseNotes -like "*Public Release with signed*") -and (Test-Path $notesFile)) {
+    $ReleaseNotes = [System.IO.File]::ReadAllText($notesFile)
+}
+
 # 2. Locate signing credentials outside repository
 $keyPath = Join-Path $env:USERPROFILE ".stardew-sync-keys\stardew-sync.key"
 $passPath = Join-Path $env:USERPROFILE ".stardew-sync-secrets\signing.pass"
@@ -45,10 +50,11 @@ $pass = (Get-Content -Path $passPath -Raw).Trim()
 Write-Host "[2/7] Signing credentials verified in secure external secret stores." -ForegroundColor Green
 
 # 3. Quality Assurance: Rust Tests & TypeScript Build
+$env:CARGO_BUILD_JOBS = "1"
 Write-Host "[3/7] Running test suites (cargo test)..." -ForegroundColor Yellow
 Push-Location (Join-Path $rootDir "src-tauri")
 try {
-    & cargo test
+    & cargo test --jobs 1 -- --test-threads=1
     if ($LASTEXITCODE -ne 0) {
         throw "cargo test failed with exit code $LASTEXITCODE"
     }
@@ -114,6 +120,20 @@ if (-not (Test-Path $sigFile)) {
     Write-Error "Signature file not generated at: $sigFile"
     exit 1
 }
+
+# Normalize to canonical dot notation for GitHub release asset compliance
+$normalizedInstallerName = "Stardew.Sync_${pkgVersion}_x64-setup.exe"
+$normalizedSigName = "Stardew.Sync_${pkgVersion}_x64-setup.exe.sig"
+if ($installerName -ne $normalizedInstallerName) {
+    $stagedInstallerPath = Join-Path $nsisDir $normalizedInstallerName
+    $stagedSigPath = Join-Path $nsisDir $normalizedSigName
+    Move-Item -Path $installerPath -Destination $stagedInstallerPath -Force
+    Move-Item -Path $sigFile -Destination $stagedSigPath -Force
+    $installerName = $normalizedInstallerName
+    $installerPath = $stagedInstallerPath
+    $sigFile = $stagedSigPath
+}
+
 $signatureBase64 = (Get-Content -Path $sigFile -Raw).Trim()
 
 # 7. Generate latest.json manifest

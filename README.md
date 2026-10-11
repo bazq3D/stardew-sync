@@ -25,17 +25,21 @@ Stardew Sync is engineered to make sharing and alternating hosting roles between
 ## Project Status
 
 > [!WARNING]
-> **Current Status: Early Development / Experimental (`v0.1.3` Published)**  
-> Stardew Sync is currently in active pre-release development. Live two-PC peer-to-peer synchronization and automatic in-game host migration are **not yet available**.  
-> Published releases currently focus on establishing desktop application infrastructure, dynamic save discovery, save safety guards, and cryptographically verified application auto-updating.  
-> **Note on Host Migration:** While offline XML transformations and role-swapping logic have been verified on isolated single-machine test fixtures, these experiments do not establish working two-PC synchronization or live multiplayer role migration.
+> **Current Status: Early Development / Experimental (`v0.1.4` Published)**  
+> Stardew Sync is currently in active development. Live two-PC peer-to-peer save synchronization and automatic in-game host migration are **not yet available**.  
+> Published releases currently focus on establishing desktop application infrastructure, cryptographically verified LAN device pairing, unified pairing UI, save safety guards, and secure auto-updating.  
+> **Note on Internet P2P:** Internet peer-to-peer relaying and WAN NAT traversal are planned features and not yet supported. Only local network (LAN) device pairing is available.
 
 ---
 
 ## Current Features
 
-### Available in Published Release (v0.1.3)
+### Available in Published Release (v0.1.4)
 
+- **Secure Cryptographic LAN Device Pairing (Phase 5A)**: High-security mutual authentication between desktop devices on the local network using Ed25519 identity keypairs, X25519 ECDH key exchange, ChaCha20-Poly1305 AEAD framing, and DPAPI-encrypted trust store persistence.
+- **Unified Device Pairing UI**: Simultaneous dual-panel interface displaying active invitation generation (`SD-XXXX`) with live countdown, alongside LAN discovery peer selection and code entry.
+- **Short Authentication String (SAS) Verification**: Deterministic 6-digit SAS code with matching visual emoji set for out-of-band verification against active man-in-the-middle attacks.
+- **Authenticated Remote Device Unpairing**: Cryptographically signed mutual unpair revocation protocol ensuring devices fail closed when trust is revoked.
 - **Local Farm Save Discovery**: Automatically detects standard Stardew Valley save folders in `%APPDATA%\StardewValley\Saves` without hardcoded paths or user assumptions.
 - **Save Metadata Inspection & Accurate Host Playtime**: Inspects farm name, in-game calendar date (Season, Day of Month, Year), primary host name, farmhand cabin bindings, and shared wallet balance. Correctly extracts `<millisecondsPlayed>` from the authoritative host entity with decimal hour conversion.
 - **Application Localization (i18n)**: Full English (`en`) and Turkish (`tr`) localization with an accessible toolbar language selector and persistent language selection across restarts.
