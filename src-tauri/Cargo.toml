@@ -38,7 +38,8 @@ name = "install_fresh_state_b"
 path = "src/bin/install_fresh_state_b.rs"
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
+tokio = { version = "1", features = ["time"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 sha2 = "0.10"
@@ -51,6 +52,15 @@ xmltree = "0.11"
 walkdir = "2.5"
 sysinfo = "0.33"
 tempfile = "3.17"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+notify = "8.2.0"
+ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
+x25519-dalek = { version = "2", features = ["reusable_secrets", "serde"] }
+rand = "0.8"
+hmac = "0.12"
+hex = "0.4"
+chacha20poly1305 = "0.10"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

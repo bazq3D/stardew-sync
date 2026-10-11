@@ -1,6 +1,15 @@
 pub mod backup;
+pub mod character;
 pub mod errors;
+pub mod identity;
+pub mod monitoring;
+pub mod network;
+pub mod pairing;
 pub mod process;
 pub mod runtime;
 pub mod save;
+pub mod settings;
+pub mod snapshot;
 pub mod transaction;
+pub mod tray;
+pub mod updater;

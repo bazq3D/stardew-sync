@@ -40,3 +40,13 @@ updater.key
 *.tmp
 *.bak
 *.swp
+
+# Portable test packages & staging directories
+Phase5A-Pairing-Test*/
+*.zip
+
+# Local runtime directories (NEVER commit identity or trust data)
+/identity/
+/devices/
+/monitoring/
+/snapshots/

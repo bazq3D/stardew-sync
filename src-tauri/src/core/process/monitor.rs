@@ -29,6 +29,18 @@ impl ProcessChecker for SystemProcessChecker {
     }
 }
 
+impl SystemProcessChecker {
+    pub fn is_stardew_running() -> bool {
+        let checker = SystemProcessChecker;
+        checker.is_process_running(&[
+            "Stardew Valley.exe",
+            "Stardew Valley",
+            "StardewModdingAPI.exe",
+            "StardewModdingAPI",
+        ])
+    }
+}
+
 pub struct MockProcessChecker {
     pub running_processes: std::sync::Mutex<Vec<String>>,
 }

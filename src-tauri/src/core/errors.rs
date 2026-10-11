@@ -42,6 +42,18 @@ pub enum CoreError {
     #[error("Cannot delete protected backup '{id}' of type '{backup_type}'")]
     ProtectedBackupDeletion { id: String, backup_type: String },
 
+    #[error("Snapshot error: {0}")]
+    Snapshot(String),
+
+    #[error("Snapshot not found: '{0}'")]
+    SnapshotNotFound(String),
+
+    #[error("Snapshot security violation: {0}")]
+    SnapshotSecurityViolation(String),
+
+    #[error("Xbox WGS snapshot unsupported: Xbox container and cloud state cannot be safely backed up without live sync engine integration")]
+    SnapshotWgsUnsupported,
+
     #[error("Transaction error: {0}")]
     Transaction(String),
 
@@ -60,6 +72,21 @@ pub enum CoreError {
         actual: String,
         detail: String,
     },
+
+    #[error("Monitoring error: {0}")]
+    Monitoring(String),
+
+    #[error("Watcher error: {0}")]
+    Watcher(String),
+
+    #[error("Device identity error: {0}")]
+    Identity(String),
+
+    #[error("Pairing error: {0}")]
+    Pairing(String),
+
+    #[error("Network error: {0}")]
+    Network(String),
 
     #[error("JSON serialization error: {0}")]
     Json(#[from] serde_json::Error),

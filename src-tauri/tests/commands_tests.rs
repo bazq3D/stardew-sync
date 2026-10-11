@@ -533,4 +533,488 @@ fn test_playtime_conversion_boundaries() {
     assert_eq!(format_playtime_summary(Some(9_000_000)), "2h 30m (2.5 hours)");
 }
 
+#[test]
+fn test_app_settings_default_and_roundtrip() {
+    use stardew_sync_core::core::settings::{AppSettings, SettingsManager};
+
+    let defaults = AppSettings::default();
+    assert!(!defaults.autostart_enabled, "Autostart must be disabled by default");
+    assert!(!defaults.start_minimized, "Start minimized must be disabled by default");
+    assert!(!defaults.minimize_to_tray_on_close, "Minimize to tray on close must be disabled by default");
+    assert!(defaults.auto_check_updates, "Auto check updates should be enabled by default");
+    assert_eq!(defaults.last_update_check, None);
+    assert_eq!(defaults.last_notified_version, None);
+
+    // Test serialization roundtrip via isolated temp directory
+    let temp_dir = tempfile::tempdir().expect("tempdir creation should succeed");
+    let test_file = temp_dir.path().join("test_settings.json");
+
+    let custom_settings = AppSettings {
+        autostart_enabled: true,
+        start_minimized: true,
+        minimize_to_tray_on_close: true,
+        auto_check_updates: false,
+        last_update_check: Some("2026-10-10T00:00:00Z".to_string()),
+        last_notified_version: Some("0.2.0".to_string()),
+    };
+
+    SettingsManager::save_to_path(&test_file, &custom_settings).expect("save_to_path should succeed");
+    assert!(test_file.exists());
+
+    let loaded = SettingsManager::load_from_path(&test_file);
+    assert_eq!(loaded, custom_settings);
+}
+
+#[test]
+fn test_app_settings_cache_and_update_lifecycle() {
+    let _lock = TEST_MUTEX.lock().unwrap();
+    use stardew_sync_core::core::settings::SettingsManager;
+
+    let mut current = get_app_settings().expect("get_app_settings should succeed");
+    current.minimize_to_tray_on_close = !current.minimize_to_tray_on_close;
+
+    let saved = save_app_settings(current.clone()).expect("save_app_settings should succeed");
+    assert_eq!(saved.minimize_to_tray_on_close, current.minimize_to_tray_on_close);
+
+    let retrieved = get_app_settings().expect("get_app_settings should succeed");
+    assert_eq!(retrieved.minimize_to_tray_on_close, current.minimize_to_tray_on_close);
+
+    // Test record_update_check
+    let test_time = "2026-10-10T12:34:56Z".to_string();
+    let test_ver = "0.2.0-rc1".to_string();
+    SettingsManager::record_update_check(test_time.clone(), Some(test_ver.clone()));
+
+    let updated = get_app_settings().expect("get_app_settings should succeed");
+    assert_eq!(updated.last_update_check, Some(test_time));
+    assert_eq!(updated.last_notified_version, Some(test_ver));
+}
+
+#[test]
+fn test_background_update_poller_invariants() {
+    let _lock = TEST_MUTEX.lock().unwrap();
+    use stardew_sync_core::core::updater::BackgroundUpdatePoller;
+
+    let status = BackgroundUpdatePoller::get_latest_status();
+    assert_eq!(status.current_version, env!("CARGO_PKG_VERSION"));
+    assert!(!status.is_checking);
+
+    // Invariant: Updater inspection never acquires or holds an ActiveUpdateGuard reservation
+    assert!(
+        !ActiveUpdateGuard::is_active(),
+        "Checking update status must not acquire exclusive update reservation"
+    );
+}
+
+#[test]
+fn test_tray_quit_guard_invariants() {
+    let _lock = TEST_MUTEX.lock().unwrap();
+    ActiveOperationGuard::reset_for_test();
+
+    // Invariant 1: Idle state allows safe quit
+    assert!(!ActiveUpdateGuard::is_active() && !ActiveOperationGuard::is_active());
+
+    // Invariant 2: Active update reservation blocks tray quit
+    let update_token = ActiveUpdateGuard::acquire().expect("acquire update guard should succeed");
+    let is_busy_with_update = ActiveUpdateGuard::is_active() || ActiveOperationGuard::is_active();
+    assert!(is_busy_with_update, "Active update reservation must report busy to tray quit guard");
+
+    ActiveUpdateGuard::release_with_token(&update_token).expect("release update guard should succeed");
+    assert!(!ActiveUpdateGuard::is_active());
+
+    // Invariant 3: Active save operation blocks tray quit
+    let save_guard = ActiveOperationGuard::acquire().expect("acquire save guard should succeed");
+    let is_busy_with_save = ActiveUpdateGuard::is_active() || ActiveOperationGuard::is_active();
+    assert!(is_busy_with_save, "Active save operation must report busy to tray quit guard");
+
+    drop(save_guard);
+    assert!(!ActiveOperationGuard::is_active());
+}
+
+#[test]
+fn test_character_extraction_from_host_and_cabin_farmhand() {
+    let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<SaveGame xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <player>
+    <name>PlayerA</name>
+    <UniqueMultiplayerID>1000000000001</UniqueMultiplayerID>
+    <homeLocation>FarmHouse</homeLocation>
+    <houseUpgradeLevel>2</houseUpgradeLevel>
+    <farmName>Emerald</farmName>
+    <isMale>true</isMale>
+    <money>45000</money>
+    <totalMoneyEarned>120000</totalMoneyEarned>
+    <millisecondsPlayed>72000000</millisecondsPlayed>
+    <maxHealth>120</maxHealth>
+    <maxStamina>320</maxStamina>
+    <maxItems>24</maxItems>
+    <items>
+      <Item xsi:type="Tool">
+        <name>Iridium Pickaxe</name>
+        <upgradeLevel>4</upgradeLevel>
+      </Item>
+      <Item xsi:type="Object">
+        <name>Parsnip Seeds</name>
+        <stack>50</stack>
+        <quality>0</quality>
+      </Item>
+    </items>
+    <experiencePoints>
+      <int>1500</int>
+      <int>800</int>
+      <int>0</int>
+      <int>0</int>
+      <int>0</int>
+    </experiencePoints>
+    <friendshipData>
+      <item>
+        <key><string>Abigail</string></key>
+        <value><Friendship><Points>2500</Points><Status>Married</Status></Friendship></value>
+      </item>
+    </friendshipData>
+    <spouse>Abigail</spouse>
+  </player>
+  <locations>
+    <GameLocation xsi:type="Farm">
+      <name>Farm</name>
+      <buildings>
+        <Building>
+          <buildingType>Stone Cabin</buildingType>
+          <tileX>42</tileX>
+          <tileY>18</tileY>
+          <indoors xsi:type="Cabin">
+            <uniqueName>Cabin_stone_1</uniqueName>
+            <farmhand>
+              <name>PlayerB</name>
+              <UniqueMultiplayerID>2000000000002</UniqueMultiplayerID>
+              <homeLocation>Cabin_stone_1</homeLocation>
+              <farmName>Emerald</farmName>
+              <isMale>false</isMale>
+              <money>5000</money>
+              <totalMoneyEarned>15000</totalMoneyEarned>
+              <maxHealth>100</maxHealth>
+              <maxStamina>270</maxStamina>
+              <maxItems>12</maxItems>
+              <items>
+                <Item xsi:type="Tool">
+                  <name>Fiberglass Rod</name>
+                  <upgradeLevel>2</upgradeLevel>
+                </Item>
+              </items>
+              <experiencePoints>
+                <int>0</int>
+                <int>0</int>
+                <int>2200</int>
+                <int>0</int>
+                <int>0</int>
+              </experiencePoints>
+              <friendshipData>
+                <item>
+                  <key><string>Leah</string></key>
+                  <value><Friendship><Points>2000</Points><Status>Friendly</Status></Friendship></value>
+                </item>
+              </friendshipData>
+            </farmhand>
+          </indoors>
+        </Building>
+      </buildings>
+    </GameLocation>
+  </locations>
+</SaveGame>"#;
+
+    let elem = Element::parse(xml.as_bytes()).expect("XML should parse cleanly");
+    let characters = stardew_sync_core::core::character::extract_all_characters_from_save(&elem, "Emerald_100");
+    assert_eq!(characters.len(), 2, "Must extract both host and farmhand");
+
+    // 1. Verify Host (PlayerA)
+    let host = characters.iter().find(|c| c.is_host).expect("Host must exist");
+    assert_eq!(host.name, "PlayerA");
+    assert_eq!(host.unique_multiplayer_id, 1000000000001);
+    assert_eq!(host.farm_name, "Emerald");
+    assert_eq!(host.gender, "Male");
+    assert_eq!(host.money, 45000);
+    assert_eq!(host.total_money_earned, 120000);
+    assert_eq!(host.max_health, 120);
+    assert_eq!(host.max_stamina, 320);
+    assert_eq!(host.backpack_capacity, 24);
+    assert_eq!(host.skills.farming, 4); // 1500 exp => lvl 4
+    assert_eq!(host.skills.fishing, 3); // 800 exp => lvl 3
+    assert_eq!(host.items.len(), 2);
+    assert_eq!(host.items[0].name, "Iridium Pickaxe");
+    assert_eq!(host.items[1].name, "Parsnip Seeds");
+    assert_eq!(host.items[1].stack, 50);
+    assert_eq!(host.spouse, Some("Abigail".to_string()));
+    assert_eq!(host.friendships.len(), 1);
+    assert_eq!(host.friendships[0].npc_name, "Abigail");
+    assert_eq!(host.friendships[0].hearts, 10);
+    assert_eq!(host.friendships[0].status, Some("Married".to_string()));
+    assert_eq!(host.play_time_formatted, "20h 0m (20.0 hours)");
+
+    // 2. Verify Farmhand (PlayerB)
+    let farmhand = characters.iter().find(|c| !c.is_host).expect("Farmhand must exist");
+    assert_eq!(farmhand.name, "PlayerB");
+    assert_eq!(farmhand.unique_multiplayer_id, 2000000000002);
+    assert_eq!(farmhand.cabin_name, Some("Stone Cabin".to_string()));
+    assert_eq!(farmhand.raw_cabin_id, Some("Cabin_stone_1".to_string()));
+    assert_eq!(farmhand.gender, "Female");
+    assert_eq!(farmhand.skills.foraging, 5); // 2200 exp => lvl 5
+    assert_eq!(farmhand.items.len(), 1);
+    assert_eq!(farmhand.items[0].name, "Fiberglass Rod");
+    assert_eq!(farmhand.friendships.len(), 1);
+    assert_eq!(farmhand.friendships[0].npc_name, "Leah");
+    assert_eq!(farmhand.friendships[0].hearts, 8);
+}
+
+#[test]
+fn test_character_extraction_stardew_1_6_root_farmhands() {
+    let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<SaveGame xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <player>
+    <name>RootHost</name>
+    <UniqueMultiplayerID>999111</UniqueMultiplayerID>
+  </player>
+  <farmhands>
+    <Farmer>
+      <name>RootFarmhand</name>
+      <UniqueMultiplayerID>999222</UniqueMultiplayerID>
+      <farmingLevel>8</farmingLevel>
+      <miningLevel>7</miningLevel>
+      <foragingLevel>6</foragingLevel>
+      <fishingLevel>5</fishingLevel>
+      <combatLevel>4</combatLevel>
+    </Farmer>
+  </farmhands>
+</SaveGame>"#;
+
+    let elem = Element::parse(xml.as_bytes()).unwrap();
+    let characters = stardew_sync_core::core::character::extract_all_characters_from_save(&elem, "TestFarm_100");
+    assert_eq!(characters.len(), 2);
+
+    let farmhand = characters.iter().find(|c| !c.is_host).unwrap();
+    assert_eq!(farmhand.name, "RootFarmhand");
+    assert_eq!(farmhand.unique_multiplayer_id, 999222);
+    assert_eq!(farmhand.skills.farming, 8);
+    assert_eq!(farmhand.skills.mining, 7);
+    assert_eq!(farmhand.skills.foraging, 6);
+    assert_eq!(farmhand.skills.fishing, 5);
+    assert_eq!(farmhand.skills.combat, 4);
+}
+
+#[test]
+fn test_character_extraction_missing_tags_graceful_fallbacks() {
+    let xml = r#"<SaveGame><player><name>MinimalFarmer</name></player></SaveGame>"#;
+    let elem = Element::parse(xml.as_bytes()).unwrap();
+    let characters = stardew_sync_core::core::character::extract_all_characters_from_save(&elem, "Minimal_001");
+    assert_eq!(characters.len(), 1);
+
+    let character = &characters[0];
+    assert_eq!(character.name, "MinimalFarmer");
+    assert_eq!(character.unique_multiplayer_id, 0);
+    assert_eq!(character.max_health, 100);
+    assert_eq!(character.max_stamina, 270);
+    assert_eq!(character.money, 0);
+    assert_eq!(character.backpack_capacity, 12);
+    assert!(character.items.is_empty());
+    assert!(character.friendships.is_empty());
+    assert_eq!(character.spouse, None);
+    assert_eq!(character.play_time_formatted, "Unknown");
+    assert_eq!(character.gender, "Unknown");
+}
+
+#[test]
+fn test_get_farm_characters_path_traversal_rejection() {
+    let bad_paths = vec!["../Secret", "..\\Secret", "sub/folder", "sub\\folder"];
+    for path in bad_paths {
+        let res = get_farm_characters(path.to_string());
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Security Violation"));
+    }
+}
+
+#[test]
+fn test_gender_extraction_regression_male_female_missing_malformed() {
+    use stardew_sync_core::core::character::extract_gender;
+
+    // Case 1: Standard male
+    let xml_male = r#"<player><name>Bob</name><isMale>true</isMale></player>"#;
+    let elem_male = Element::parse(xml_male.as_bytes()).unwrap();
+    assert_eq!(extract_gender(&elem_male), "Male");
+
+    // Case 2: Standard female
+    let xml_female = r#"<player><name>Alice</name><isMale>false</isMale></player>"#;
+    let elem_female = Element::parse(xml_female.as_bytes()).unwrap();
+    assert_eq!(extract_gender(&elem_female), "Female");
+
+    // Case 3: Stardew 1.6+ explicit <Gender>Female</Gender>
+    let xml_16_female = r#"<player><name>Penny</name><Gender>Female</Gender><isMale xsi:nil="true" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/></player>"#;
+    let elem_16_female = Element::parse(xml_16_female.as_bytes()).unwrap();
+    assert_eq!(extract_gender(&elem_16_female), "Female");
+
+    // Case 4: Stardew 1.6+ explicit <Gender>Male</Gender>
+    let xml_16_male = r#"<player><name>Sam</name><Gender>Male</Gender><isMale xsi:nil="true" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/></player>"#;
+    let elem_16_male = Element::parse(xml_16_male.as_bytes()).unwrap();
+    assert_eq!(extract_gender(&elem_16_male), "Male");
+
+    // Case 5: Missing gender tags entirely -> MUST NOT default to Male
+    let xml_missing = r#"<player><name>Ghost</name></player>"#;
+    let elem_missing = Element::parse(xml_missing.as_bytes()).unwrap();
+    assert_eq!(extract_gender(&elem_missing), "Unknown");
+
+    // Case 6: Malformed / non-boolean isMale tag -> MUST NOT default to Male
+    let xml_malformed = r#"<player><name>Corrupt</name><isMale>not_a_boolean</isMale></player>"#;
+    let elem_malformed = Element::parse(xml_malformed.as_bytes()).unwrap();
+    assert_eq!(extract_gender(&elem_malformed), "Unknown");
+
+    // Case 7: isMale with xsi:nil="true" but without Gender tag -> MUST NOT default to Male
+    let xml_nil = r#"<player><name>NilFarmer</name><isMale xsi:nil="true" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/></player>"#;
+    let elem_nil = Element::parse(xml_nil.as_bytes()).unwrap();
+    assert_eq!(extract_gender(&elem_nil), "Unknown");
+}
+
+#[test]
+fn test_turk_farmhand_elbi_female_gender_regression() {
+    // Regression test matching the real-world Türk farm structure where farmhand elbi was misidentified as Male
+    let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<SaveGame xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <player>
+    <name>Kubilay</name>
+    <UniqueMultiplayerID>1001</UniqueMultiplayerID>
+    <farmName>Türk</farmName>
+    <isMale>true</isMale>
+    <money>48250</money>
+    <totalMoneyEarned>150000</totalMoneyEarned>
+  </player>
+  <locations>
+    <GameLocation xsi:type="Farm">
+      <buildings>
+        <Building>
+          <buildingType>Stone Cabin</buildingType>
+          <indoors xsi:type="Cabin">
+            <uniqueName>FarmHouse644329ab-e942-4dad-8f28-9b089b9a30e8</uniqueName>
+            <name>Cabin</name>
+            <farmhandReference>1002</farmhandReference>
+          </indoors>
+        </Building>
+      </buildings>
+    </GameLocation>
+  </locations>
+  <farmhands>
+    <Farmer>
+      <name>elbi</name>
+      <UniqueMultiplayerID>1002</UniqueMultiplayerID>
+      <Gender>Female</Gender>
+      <isMale xsi:nil="true" />
+      <money>48250</money>
+      <totalMoneyEarned>150000</totalMoneyEarned>
+    </Farmer>
+  </farmhands>
+  <farmerTeam>
+    <useSeparateWallets>false</useSeparateWallets>
+  </farmerTeam>
+</SaveGame>"#;
+
+    let elem = Element::parse(xml.as_bytes()).unwrap();
+    let characters = stardew_sync_core::core::character::extract_all_characters_from_save(&elem, "TXrk_450560341");
+    assert_eq!(characters.len(), 2);
+
+    let host = characters.iter().find(|c| c.is_host).unwrap();
+    assert_eq!(host.name, "Kubilay");
+    assert_eq!(host.gender, "Male");
+    assert!(host.is_wallet_shared);
+    assert_eq!(host.money, 48250);
+
+    let farmhand = characters.iter().find(|c| !c.is_host).unwrap();
+    assert_eq!(farmhand.name, "elbi");
+    // CRITICAL: elbi must be detected as Female, NOT Male!
+    assert_eq!(farmhand.gender, "Female");
+    assert!(farmhand.is_wallet_shared);
+    assert_eq!(farmhand.money, 48250);
+    // Friendly cabin name must be "Stone Cabin", not the raw FarmHouse UUID
+    assert_eq!(farmhand.cabin_name, Some("Stone Cabin".to_string()));
+    assert_eq!(
+        farmhand.raw_cabin_id,
+        Some("FarmHouse644329ab-e942-4dad-8f28-9b089b9a30e8".to_string())
+    );
+}
+
+#[test]
+fn test_separate_wallets_detection() {
+    let xml = r#"<SaveGame><player><name>Solo</name><money>500</money></player><farmerTeam><useSeparateWallets>true</useSeparateWallets></farmerTeam></SaveGame>"#;
+    let elem = Element::parse(xml.as_bytes()).unwrap();
+    let characters = stardew_sync_core::core::character::extract_all_characters_from_save(&elem, "Solo_001");
+    assert_eq!(characters.len(), 1);
+    assert!(!characters[0].is_wallet_shared);
+}
+
+#[test]
+fn test_discover_farms_farmhands_extraction_regression_turk_elbi() {
+    let _lock = TEST_MUTEX.lock().unwrap();
+    let temp_saves = tempfile::tempdir().unwrap();
+    let farm_folder = "TXrk_450560341";
+    let farm_dir = temp_saves.path().join(farm_folder);
+    std::fs::create_dir_all(&farm_dir).unwrap();
+
+    // Primary save has host Kubilay + farmhand elbi in Stone Cabin
+    let primary_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<SaveGame xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <player>
+    <name>Kubilay</name>
+    <UniqueMultiplayerID>1001</UniqueMultiplayerID>
+    <farmName>Türk</farmName>
+  </player>
+  <locations>
+    <GameLocation xsi:type="Farm">
+      <buildings>
+        <Building>
+          <buildingType>Stone Cabin</buildingType>
+          <indoors xsi:type="Cabin">
+            <farmhandReference>1002</farmhandReference>
+          </indoors>
+        </Building>
+      </buildings>
+    </GameLocation>
+  </locations>
+  <farmhands>
+    <Farmer>
+      <name>elbi</name>
+      <UniqueMultiplayerID>1002</UniqueMultiplayerID>
+    </Farmer>
+  </farmhands>
+</SaveGame>"#;
+
+    // SaveGameInfo does NOT contain farmhands tag (standard in Stardew Valley)
+    let info_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<Farmer xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <name>Kubilay</name>
+  <farmName>Türk</farmName>
+  <money>48250</money>
+  <currentSeason>winter</currentSeason>
+  <dayOfMonth>12</dayOfMonth>
+  <year>1</year>
+</Farmer>"#;
+
+    std::fs::write(farm_dir.join(farm_folder), primary_xml).unwrap();
+    std::fs::write(farm_dir.join("SaveGameInfo"), info_xml).unwrap();
+
+    // Discover saves in this directory directly
+    let discovered = stardew_sync_core::core::save::discovery::discover_saves(temp_saves.path()).unwrap();
+    assert_eq!(discovered.len(), 1);
+
+    // Verify extract_all_characters_from_save finds both host and elbi
+    let primary_content = std::fs::read_to_string(&discovered[0].primary_save_path).unwrap();
+    let primary_elem = xmltree::Element::parse(primary_content.as_bytes()).unwrap();
+    let characters = stardew_sync_core::core::character::extract_all_characters_from_save(&primary_elem, farm_folder);
+
+    let mut farmhands = Vec::new();
+    for c in characters {
+        if !c.is_host && !c.name.trim().is_empty() {
+            farmhands.push(c.name);
+        }
+    }
+
+    assert_eq!(farmhands, vec!["elbi".to_string()], "Farmhands must contain 'elbi', not be empty!");
+}
+
+
+
+
 

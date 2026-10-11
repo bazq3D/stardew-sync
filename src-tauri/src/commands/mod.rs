@@ -8,6 +8,9 @@ use crate::core::save::parser::{
     ParsedSave, PlayerSummary, CabinSummary, get_child_text, format_stardew_season,
 };
 use crate::core::runtime::guard::PRODUCTION_FARM_FOLDER;
+use crate::core::character::{
+    extract_all_characters_from_save, extract_character_from_farmer_element, CharacterProfile,
+};
 
 /// Explicitly registered test fixtures from validation phases (isolated R&D slots)
 pub const REGISTERED_TEST_FIXTURES: &[&str] = &[
@@ -567,17 +570,34 @@ pub fn discover_farms() -> Result<Vec<FarmInfo>, String> {
                 let (_, _, _, summary) = extract_date_from_xml_element(&elem);
                 date_summary = summary;
 
-                // Farmhands (arbitrary count, 0 to N)
+                // Fallback farmhands from SaveGameInfo if any
                 if let Some(farmhands_elem) = elem.get_child("farmhands") {
                     for child in &farmhands_elem.children {
                         if let Some(farmer_elem) = child.as_element() {
                             if let Some(fh_name) = get_child_text(farmer_elem, "name") {
                                 let trimmed = fh_name.trim();
-                                if !trimmed.is_empty() {
+                                if !trimmed.is_empty() && !farmhands.contains(&trimmed.to_string()) {
                                     farmhands.push(trimmed.to_string());
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Authoritative character extraction: reuse verified extract_all_characters_from_save
+        // which parses host and all farmhands across cabins and root farmhand lists.
+        if let Ok(primary_content) = fs::read_to_string(&save.primary_save_path) {
+            if let Ok(primary_elem) = xmltree::Element::parse(std::io::Cursor::new(primary_content.as_bytes())) {
+                let characters = extract_all_characters_from_save(&primary_elem, &save.folder_name);
+                for c in characters {
+                    if c.is_host {
+                        if host_name == "Unknown" || host_name.is_empty() {
+                            host_name = c.name;
+                        }
+                    } else if !c.name.trim().is_empty() && !farmhands.contains(&c.name) {
+                        farmhands.push(c.name);
                     }
                 }
             }
@@ -854,4 +874,523 @@ pub fn release_update_reservation(token: String) -> Result<bool, String> {
     ActiveUpdateGuard::release_with_token(&token).map_err(|e| e.to_string())
 }
 
+use crate::core::settings::{AppSettings, SettingsManager};
+use crate::core::updater::{BackgroundUpdatePoller, BackgroundUpdateStatus};
+use tauri_plugin_autostart::ManagerExt;
+
+#[tauri::command]
+pub fn get_app_settings() -> Result<AppSettings, String> {
+    Ok(SettingsManager::get_cached())
+}
+
+#[tauri::command]
+pub fn save_app_settings(settings: AppSettings) -> Result<AppSettings, String> {
+    SettingsManager::update(settings)
+}
+
+#[tauri::command]
+pub fn get_autostart_status(app: tauri::AppHandle) -> Result<bool, String> {
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_autostart_status(app: tauri::AppHandle, enable: bool) -> Result<bool, String> {
+    let manager = app.autolaunch();
+    if enable {
+        manager.enable().map_err(|e| format!("Failed to enable Windows autostart: {}", e))?;
+    } else {
+        manager.disable().map_err(|e| format!("Failed to disable Windows autostart: {}", e))?;
+    }
+
+    // Synchronize settings state
+    let mut settings = SettingsManager::get_cached();
+    settings.autostart_enabled = enable;
+    let _ = SettingsManager::update(settings);
+
+    manager.is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn trigger_background_update_check(app: tauri::AppHandle) -> Result<BackgroundUpdateStatus, String> {
+    BackgroundUpdatePoller::check_for_updates(&app, true).await
+}
+
+#[tauri::command]
+pub fn get_background_update_status() -> Result<BackgroundUpdateStatus, String> {
+    Ok(BackgroundUpdatePoller::get_latest_status())
+}
+
+#[tauri::command]
+pub fn get_farm_characters(folder_name: String) -> Result<Vec<CharacterProfile>, String> {
+    if folder_name.contains('/') || folder_name.contains('\\') || folder_name.contains("..") {
+        return Err("Security Violation: Invalid folder name characters".to_string());
+    }
+
+    let saves_dir = get_default_saves_dir();
+    let folder_path = saves_dir.join(&folder_name);
+    if !folder_path.exists() || !folder_path.is_dir() {
+        return Err(format!("Save folder not found: {}", folder_name));
+    }
+
+    let primary_save_path = folder_path.join(&folder_name);
+    let save_game_info_path = folder_path.join("SaveGameInfo");
+
+    if primary_save_path.is_file() {
+        let xml_content = fs::read_to_string(&primary_save_path)
+            .map_err(|e| format!("Failed to read primary save file: {}", e))?;
+        let root = xmltree::Element::parse(std::io::Cursor::new(xml_content.as_bytes()))
+            .map_err(|e| format!("Failed to parse save XML: {}", e))?;
+
+        Ok(extract_all_characters_from_save(&root, &folder_name))
+    } else if save_game_info_path.is_file() {
+        let info_content = fs::read_to_string(&save_game_info_path)
+            .map_err(|e| format!("Failed to read SaveGameInfo: {}", e))?;
+        let info_elem = xmltree::Element::parse(std::io::Cursor::new(info_content.as_bytes()))
+            .map_err(|e| format!("Failed to parse SaveGameInfo XML: {}", e))?;
+
+        let profile = extract_character_from_farmer_element(
+            &info_elem,
+            true,
+            "Farm",
+            &folder_name,
+            "",
+            None,
+            None,
+            true,
+        );
+        Ok(vec![profile])
+    } else {
+        Err(format!("No valid save files found in {}", folder_name))
+    }
+}
+
+#[tauri::command]
+pub fn get_all_characters() -> Result<Vec<CharacterProfile>, String> {
+    let saves_dir = get_default_saves_dir();
+    if !saves_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let discovered = discover_saves(&saves_dir).map_err(|e| e.to_string())?;
+    let mut all_characters = Vec::new();
+
+    for save in discovered {
+        if save.primary_save_path.is_file() {
+            if let Ok(xml_content) = fs::read_to_string(&save.primary_save_path) {
+                if let Ok(root) = xmltree::Element::parse(std::io::Cursor::new(xml_content.as_bytes())) {
+                    let chars = extract_all_characters_from_save(&root, &save.folder_name);
+                    all_characters.extend(chars);
+                    continue;
+                }
+            }
+        }
+
+        // Fallback to SaveGameInfo if primary file could not be read
+        if save.save_game_info_path.is_file() {
+            if let Ok(info_content) = fs::read_to_string(&save.save_game_info_path) {
+                if let Ok(info_elem) = xmltree::Element::parse(std::io::Cursor::new(info_content.as_bytes())) {
+                    let profile = extract_character_from_farmer_element(
+                        &info_elem,
+                        true,
+                        &save.farm_name,
+                        &save.folder_name,
+                        &save.game_id,
+                        None,
+                        None,
+                        true,
+                    );
+                    all_characters.push(profile);
+                }
+            }
+        }
+    }
+
+    Ok(all_characters)
+}
+
+use crate::core::snapshot::{
+    SnapshotComparison, SnapshotIntegrityResult, SnapshotReason, VersionedSnapshotManager,
+    VersionedSnapshotManifest, VersionedSnapshotSummary,
+};
+
+#[tauri::command]
+pub fn create_manual_snapshot(
+    folder_name: String,
+    label: Option<String>,
+) -> Result<VersionedSnapshotManifest, String> {
+    let saves_dir = get_default_saves_dir();
+    VersionedSnapshotManager::create_snapshot(&folder_name, &saves_dir, label, SnapshotReason::Manual)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn list_versioned_snapshots(
+    farm_filter: Option<String>,
+) -> Result<Vec<VersionedSnapshotSummary>, String> {
+    VersionedSnapshotManager::list_snapshots(farm_filter.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_versioned_snapshot_manifest(
+    snapshot_id: String,
+) -> Result<VersionedSnapshotManifest, String> {
+    VersionedSnapshotManager::get_manifest(&snapshot_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn verify_versioned_snapshot(
+    snapshot_id: String,
+) -> Result<SnapshotIntegrityResult, String> {
+    VersionedSnapshotManager::verify_integrity(&snapshot_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn rename_versioned_snapshot_label(
+    snapshot_id: String,
+    new_label: String,
+) -> Result<VersionedSnapshotSummary, String> {
+    VersionedSnapshotManager::rename_label(&snapshot_id, new_label)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_versioned_snapshot(
+    snapshot_id: String,
+    confirmation: String,
+) -> Result<(), String> {
+    VersionedSnapshotManager::delete_snapshot(&snapshot_id, &confirmation)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn compare_versioned_snapshots(
+    snapshot_id_a: String,
+    snapshot_id_b: String,
+) -> Result<SnapshotComparison, String> {
+    VersionedSnapshotManager::compare_snapshots(&snapshot_id_a, &snapshot_id_b)
+        .map_err(|e| e.to_string())
+}
+
+use std::sync::OnceLock;
+use crate::core::monitoring::{
+    DetectionReason, FarmMonitoringStatus, ObservationJournalEntry, SaveMonitoringService,
+};
+
+static MONITORING_SERVICE: OnceLock<SaveMonitoringService> = OnceLock::new();
+
+pub fn get_monitoring_service() -> &'static SaveMonitoringService {
+    MONITORING_SERVICE.get_or_init(|| {
+        let saves_dir = get_default_saves_dir();
+        SaveMonitoringService::new(saves_dir)
+    })
+}
+
+#[tauri::command]
+pub fn get_farm_monitoring_status(folder_name: String) -> Result<FarmMonitoringStatus, String> {
+    let service = get_monitoring_service();
+    match service.get_status(&folder_name) {
+        Some(status) => Ok(status),
+        None => service
+            .check_farm_now(&folder_name, DetectionReason::InitialScan)
+            .map_err(|e| e.to_string()),
+    }
+}
+
+#[tauri::command]
+pub fn trigger_monitoring_check(folder_name: String) -> Result<FarmMonitoringStatus, String> {
+    let service = get_monitoring_service();
+    service
+        .check_farm_now(&folder_name, DetectionReason::ManualCheck)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_farm_observation_journal(folder_name: String) -> Result<Vec<ObservationJournalEntry>, String> {
+    let service = get_monitoring_service();
+    service.get_journal(&folder_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_all_monitoring_statuses() -> Result<Vec<FarmMonitoringStatus>, String> {
+    let service = get_monitoring_service();
+    Ok(service.get_all_statuses())
+}
+
+#[tauri::command]
+pub fn set_monitoring_enabled(enabled: bool) -> Result<bool, String> {
+    let service = get_monitoring_service();
+    service.set_enabled(enabled);
+    Ok(service.is_enabled())
+}
+
+// -----------------------------------------------------------------------------
+// Phase 5A: Secure Device Identity, Pairing & LAN Discovery Commands
+// -----------------------------------------------------------------------------
+
+use crate::core::identity::{DeviceIdentity, PublicDeviceInfo};
+use crate::core::network::{
+    get_connection_manager, get_discovery_manager, get_network_service, DiscoveredPeer,
+    PeerConnectionStatus, DEFAULT_DISCOVERY_PORT,
+};
+use crate::core::pairing::{
+    get_pairing_manager, ActivePairingSessionView, PairedDevice, PairedDeviceStore,
+    PairingInvitation,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PairedDeviceWithStatus {
+    pub device_id: String,
+    pub device_name: String,
+    pub public_key_hex: String,
+    pub fingerprint: String,
+    pub paired_at: String,
+    pub last_seen_at: Option<String>,
+    pub last_ip: Option<String>,
+    pub connection_status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnpairResult {
+    pub local_removed: bool,
+    pub remote_notified: bool,
+    pub message: String,
+}
+
+#[tauri::command]
+pub fn get_local_device_info() -> Result<PublicDeviceInfo, String> {
+    let identity = DeviceIdentity::load_or_create().map_err(|e| e.to_string())?;
+    Ok(identity.public_info())
+}
+
+#[tauri::command]
+pub fn set_local_device_name(name: String) -> Result<PublicDeviceInfo, String> {
+    let mut identity = DeviceIdentity::load_or_create().map_err(|e| e.to_string())?;
+    identity.set_device_name(&name).map_err(|e| e.to_string())?;
+    Ok(identity.public_info())
+}
+
+#[tauri::command]
+pub fn list_paired_devices() -> Result<Vec<PairedDeviceWithStatus>, String> {
+    let mut store = PairedDeviceStore::load().map_err(|e| e.to_string())?;
+    let conn_mgr = get_connection_manager();
+    let statuses = conn_mgr.get_all_statuses();
+    let discovery = get_discovery_manager();
+
+    let mut store_modified = false;
+    let mut devices = Vec::new();
+
+    for d in store.list() {
+        let live_status = statuses.get(&d.device_id).map(|s| s.as_str());
+
+        let (derived_status, fresh_addr) = match live_status {
+            Some("connected") => ("connected".to_string(), None),
+            Some("connecting") => ("connecting".to_string(), None),
+            _ => {
+                if let Some(peer) = discovery.get_peer(&d.device_id) {
+                    ("online".to_string(), Some(peer.address))
+                } else {
+                    ("offline".to_string(), None)
+                }
+            }
+        };
+
+        let mut last_seen_at = d.last_seen_at.clone();
+        let mut last_ip = d.last_ip.clone();
+
+        if derived_status == "online" || derived_status == "connected" {
+            last_seen_at = Some(chrono::Utc::now().to_rfc3339());
+            if let Some(addr) = fresh_addr {
+                let ip_only = addr.split(':').next().unwrap_or(&addr).to_string();
+                last_ip = Some(ip_only);
+            }
+            let _ = store.update_last_seen(&d.device_id, last_ip.clone());
+            store_modified = true;
+        }
+
+        devices.push(PairedDeviceWithStatus {
+            device_id: d.device_id,
+            device_name: d.device_name,
+            public_key_hex: d.public_key_hex,
+            fingerprint: d.fingerprint,
+            paired_at: d.paired_at,
+            last_seen_at,
+            last_ip,
+            connection_status: derived_status,
+        });
+    }
+
+    if store_modified {
+        let _ = store.save();
+    }
+
+    Ok(devices)
+}
+
+#[tauri::command]
+pub fn unpair_device(device_id: String) -> Result<UnpairResult, String> {
+    let trimmed_id = device_id.trim();
+    if trimmed_id.is_empty() {
+        return Err("Device ID cannot be empty".to_string());
+    }
+
+    let mut store = PairedDeviceStore::load().map_err(|e| e.to_string())?;
+    let peer_record = store.get(trimmed_id).cloned();
+    if peer_record.is_none() {
+        return Ok(UnpairResult {
+            local_removed: false,
+            remote_notified: false,
+            message: "Device was not found in paired store".to_string(),
+        });
+    }
+    let peer_record = peer_record.unwrap();
+
+    let discovery = get_discovery_manager();
+    let net = get_network_service();
+    let conn_mgr = get_connection_manager();
+
+    // Determine target address: prefer discovered address, fallback to last known IP
+    let target_addr: Option<String> = if let Some(discovered) = discovery.get_peer(trimmed_id) {
+        Some(discovered.address)
+    } else if let Some(last_ip) = &peer_record.last_ip {
+        let addr = if last_ip.contains(':') {
+            last_ip.clone()
+        } else {
+            format!("{}:{}", last_ip, DEFAULT_DISCOVERY_PORT)
+        };
+        Some(addr)
+    } else {
+        None
+    };
+
+    let mut remote_notified = false;
+    let mut remote_error = None;
+
+    if let Some(addr) = target_addr {
+        if let Ok(local_identity) = DeviceIdentity::load_or_create() {
+            println!("[bazq-pairing] Attempting authenticated remote unpair revocation to {} at {}", trimmed_id, addr);
+            match net.send_remote_unpair(&addr, trimmed_id, &local_identity) {
+                Ok(true) => {
+                    remote_notified = true;
+                    println!("[bazq-pairing] Remote peer {} acknowledged revocation", trimmed_id);
+                }
+                Ok(false) => {
+                    remote_error = Some("Peer rejected revocation".to_string());
+                }
+                Err(e) => {
+                    println!("[bazq-pairing] Remote peer unreachable for revocation: {}", e);
+                    remote_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        remote_error = Some("Peer is offline and has no reachable network address".to_string());
+    }
+
+    // Always remove from local store (fail-closed local trust deletion)
+    let local_removed = store.remove(trimmed_id).map_err(|e| e.to_string())?;
+    conn_mgr.set_status(trimmed_id, PeerConnectionStatus::Disconnected);
+
+    let message = if remote_notified {
+        format!("Device '{}' was successfully unpaired from both devices.", peer_record.device_name)
+    } else {
+        format!(
+            "Device '{}' was removed locally. However, the peer could not be reached ({}); they may still list this PC until refreshed or unpaired.",
+            peer_record.device_name,
+            remote_error.unwrap_or_else(|| "peer offline".to_string())
+        )
+    };
+
+    Ok(UnpairResult {
+        local_removed,
+        remote_notified,
+        message,
+    })
+}
+
+#[tauri::command]
+pub fn start_pairing_invitation(tcp_port: Option<u16>) -> Result<PairingInvitation, String> {
+    let identity = DeviceIdentity::load_or_create().map_err(|e| e.to_string())?;
+    let net = get_network_service();
+    let port = tcp_port.unwrap_or_else(|| net.get_active_tcp_port().unwrap_or(DEFAULT_DISCOVERY_PORT));
+    let manager = get_pairing_manager();
+    let invitation = manager
+        .start_invitation(&identity, port)
+        .map_err(|e| e.to_string())?;
+
+    // Broadcast beacon announcing invitation
+    let _ = get_discovery_manager().broadcast_beacon(&identity.public_info(), port, true);
+
+    Ok(invitation)
+}
+
+#[tauri::command]
+pub fn cancel_pairing_invitation() -> Result<(), String> {
+    let manager = get_pairing_manager();
+    manager.cancel_invitation().map_err(|e| e.to_string())?;
+
+    if let Ok(identity) = DeviceIdentity::load_or_create() {
+        let net = get_network_service();
+        let port = net.get_active_tcp_port().unwrap_or(DEFAULT_DISCOVERY_PORT);
+        let _ = get_discovery_manager().broadcast_beacon(&identity.public_info(), port, false);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_active_pairing_session() -> Result<ActivePairingSessionView, String> {
+    let manager = get_pairing_manager();
+    Ok(manager.get_session_view())
+}
+
+#[tauri::command]
+pub fn confirm_pairing_code(code: String) -> Result<Option<PairedDevice>, String> {
+    let mut store = PairedDeviceStore::load().map_err(|e| e.to_string())?;
+    let manager = get_pairing_manager();
+    manager
+        .confirm_local(&code, &mut store)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reject_pairing() -> Result<(), String> {
+    let manager = get_pairing_manager();
+    manager.reject().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn connect_to_peer(address: String, invitation_code: String) -> Result<String, String> {
+    if address.trim().is_empty() || invitation_code.trim().is_empty() {
+        return Err("Address and invitation code are required".to_string());
+    }
+
+    let identity = DeviceIdentity::load_or_create().map_err(|e| e.to_string())?;
+    let net = get_network_service();
+    net.initiate_pairing(&address, &invitation_code, &identity)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_discovered_peers() -> Result<Vec<DiscoveredPeer>, String> {
+    let store = PairedDeviceStore::load().map_err(|e| e.to_string())?;
+    let paired_ids: Vec<String> = store.list().into_iter().map(|d| d.device_id).collect();
+    let discovery = get_discovery_manager();
+    Ok(discovery.list_discovered_peers(&paired_ids))
+}
+
+#[tauri::command]
+pub fn broadcast_discovery_beacon() -> Result<(), String> {
+    let identity = DeviceIdentity::load_or_create().map_err(|e| e.to_string())?;
+    let net = get_network_service();
+    let port = net.get_active_tcp_port().unwrap_or(DEFAULT_DISCOVERY_PORT);
+    let manager = get_pairing_manager();
+    let is_inviting = manager.get_active_invitation().is_some();
+
+    get_discovery_manager()
+        .broadcast_beacon(&identity.public_info(), port, is_inviting)
+        .map_err(|e| e.to_string())
+}
 
