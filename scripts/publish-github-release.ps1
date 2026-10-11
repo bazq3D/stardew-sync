@@ -89,12 +89,18 @@ Write-Host "[OK] GitHub CLI authenticated successfully." -ForegroundColor Green
 
 # 3. Check GitHub Remote Release State & Fetch Existing Metadata
 Write-Host "[3/8] Inspecting remote release state on $Repo for $tag..." -ForegroundColor Yellow
-$remoteReleaseJson = & $ghPath release view $tag --repo $Repo --json name,body 2>$null
 $existingRelease = $null
-if ($LASTEXITCODE -eq 0 -and $remoteReleaseJson) {
-    try {
+$prevEap = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "SilentlyContinue"
+    $remoteReleaseJson = & $ghPath release view $tag --repo $Repo --json name,body 2>$null
+    if ($LASTEXITCODE -eq 0 -and $remoteReleaseJson) {
         $existingRelease = $remoteReleaseJson | ConvertFrom-Json
-    } catch { }
+    }
+} catch {
+    $existingRelease = $null
+} finally {
+    $ErrorActionPreference = $prevEap
 }
 
 if ($existingRelease) {
@@ -166,13 +172,13 @@ if (-not $Title) {
 }
 
 if ($ReleaseNotes -and (Test-Path $ReleaseNotes)) {
-    $ReleaseNotes = Get-Content -Path $ReleaseNotes -Raw
+    $ReleaseNotes = [System.IO.File]::ReadAllText($ReleaseNotes)
 }
 
 if (-not $ReleaseNotes) {
     $notesFile = Join-Path $rootDir "docs\release-notes\$tag.md"
     if (Test-Path $notesFile) {
-        $ReleaseNotes = Get-Content -Path $notesFile -Raw
+        $ReleaseNotes = [System.IO.File]::ReadAllText($notesFile)
     } else {
         try {
             $gitCommits = git log -n 10 --pretty=format:"* %s (%h)" 2>$null
